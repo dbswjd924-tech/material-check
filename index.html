@@ -138,6 +138,7 @@
       <div class="sub">세종 선교센터 · 기획부</div>
     </div>
     <div style="display:flex;gap:6px;align-items:center">
+      <button class="adminOnly" onclick="openPwSettings()" style="font-size:11px;padding:4px 10px;border-radius:20px;border:none;background:rgba(255,255,255,.15);color:#cfd6e4;font-weight:700;cursor:pointer;white-space:nowrap">⚙️ 암호 변경</button>
       <button id="modeBadge" class="viewer" onclick="toggleMode()">👤 열람자</button>
       <span id="syncBadge">연결 확인중…</span>
     </div>
@@ -252,12 +253,14 @@ const firebaseConfig = {
   appId: "1:749054078144:web:6a3124e6d0ea4eab975125"
 };
 
-/* ② 암호 설정
-   VIEWER_PASSWORD : 열람자용 (확인란 체크만 가능)
-   ADMIN_PASSWORD  : 관리자용 (교재·그룹·명단 등록/수정/삭제 가능) */
+/* ② 초기 암호 (관리자 화면의 ⚙️ 암호 변경에서 언제든 바꿀 수 있습니다.
+   변경한 암호는 실시간 저장되어 모든 기기에 즉시 적용됩니다.) */
 const VIEWER_PASSWORD = "tpwhd1000!!";
 const ADMIN_PASSWORD  = "admin1000!!";
 const DB_PATH = "material_check_v1";
+
+function viewerPw(){ return (DATA.settings && DATA.settings.viewerPw) || VIEWER_PASSWORD; }
+function adminPw(){ return (DATA.settings && DATA.settings.adminPw) || ADMIN_PASSWORD; }
 
 let DATA = { members:{}, groups:{}, docs:{} };
 let db = null, useFirebase = false, currentDocId = null;
@@ -274,7 +277,7 @@ function init(){
       badge.textContent = "🟢 실시간 동기화";
       badge.className = "on";
       db.ref(DB_PATH).on('value', snap=>{
-        DATA = Object.assign({members:{},groups:{},docs:{}}, snap.val()||{});
+        DATA = Object.assign({members:{},groups:{},docs:{},settings:{}}, snap.val()||{});
         renderAll();
       });
     }catch(e){ localMode(); }
@@ -300,8 +303,8 @@ function save(){
 let isAdmin = false;
 function checkPw(){
   const v = document.getElementById('pwInput').value;
-  if(v === ADMIN_PASSWORD || v === VIEWER_PASSWORD){
-    isAdmin = (v === ADMIN_PASSWORD);
+  if(v === adminPw() || v === viewerPw()){
+    isAdmin = (v === adminPw());
     applyMode();
     document.getElementById('lockScreen').style.display='none';
     if(currentDocId && DATA.docs[currentDocId]) openDetail(currentDocId);
@@ -325,9 +328,34 @@ function toggleMode(){
   } else {
     const v = prompt('관리자 암호를 입력하세요.');
     if(v === null) return;
-    if(v === ADMIN_PASSWORD){ isAdmin=true; applyMode(); }
+    if(v === adminPw()){ isAdmin=true; applyMode(); }
     else alert('관리자 암호가 올바르지 않습니다.');
   }
+}
+
+/* ───── 암호 변경 (관리자) ───── */
+function openPwSettings(){
+  if(!isAdmin) return;
+  openEdit(`
+    <h3>⚙️ 암호 변경</h3>
+    <div style="font-size:13px;font-weight:700;margin-bottom:4px">👤 열람자 암호</div>
+    <div class="formRow"><input type="text" id="pwV" class="grow" value="${esc(viewerPw())}"></div>
+    <div style="font-size:13px;font-weight:700;margin:8px 0 4px">🔑 관리자 암호</div>
+    <div class="formRow"><input type="text" id="pwA" class="grow" value="${esc(adminPw())}"></div>
+    <p style="font-size:12px;color:var(--muted);margin:6px 0 14px">저장하면 즉시 모든 기기에 적용됩니다. 관리자 암호는 꼭 기억해두세요.</p>
+    <button class="btn btnNavy" style="width:100%" onclick="savePwSettings()">암호 저장</button>`);
+}
+function savePwSettings(){
+  const v = document.getElementById('pwV').value.trim();
+  const a = document.getElementById('pwA').value.trim();
+  if(!v || !a) return alert('암호를 모두 입력하세요.');
+  if(v === a) return alert('열람자 암호와 관리자 암호는 서로 달라야 합니다.');
+  if(!confirm(`변경할까요?\n열람자: ${v}\n관리자: ${a}`)) return;
+  if(!DATA.settings) DATA.settings = {};
+  DATA.settings.viewerPw = v;
+  DATA.settings.adminPw = a;
+  closeEdit(); save();
+  alert('암호가 변경되었습니다.');
 }
 
 /* ───── 탭 ───── */
