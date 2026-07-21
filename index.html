@@ -3,439 +3,280 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>교회 전체현황 대시보드</title>
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
+<title>세종기획 취합 대시보드</title>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <style>
-:root{
-  --navy:#1F2A44; --navy2:#2B3A5C; --bg:#F2F4F7; --card:#FFFFFF;
-  --ink:#1C2333; --sub:#6B7385; --line:#E3E7EE;
-  --red:#D32F2F; --green:#689F38; --blue:#1976D2;
-  --p-pink:#F8BBD0; --p-peach:#FFCC80; --p-mint:#A5D6A7; --p-yellow:#FFF176; --p-sky:#81D4FA; --p-brown:#D7CCC8;
-  --gold:#C9A227;
-}
-*{box-sizing:border-box;margin:0;padding:0}
-body{font-family:'Pretendard',-apple-system,sans-serif;background:var(--bg);color:var(--ink);font-size:15px}
-button{font-family:inherit;cursor:pointer}
-input,select,textarea{font-family:inherit;font-size:14px;border:1px solid var(--line);border-radius:8px;padding:8px 10px;background:#fff;color:var(--ink)}
-input:focus,select:focus,textarea:focus{outline:2px solid #9FB4E8;border-color:#9FB4E8}
+  :root{
+    --navy:#1a2744; --navy2:#243450; --ink:#20242c;
+    --paper:#f5f4f0; --card:#ffffff; --line:#e3e1da;
+    --gold:#b8912f; --gold-bg:#faf5e8;
+    --green:#1e7a4d; --green-bg:#e8f5ee;
+    --red:#b0392f; --red-bg:#fbeceb;
+    --muted:#7a7f89;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;font-family:'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif}
+  body{background:var(--paper);color:var(--ink);min-height:100vh}
+  button{cursor:pointer;font-family:inherit}
 
-/* ── 로그인 ── */
-#loginScreen{position:fixed;inset:0;background:linear-gradient(160deg,var(--navy) 0%,#141C30 100%);display:flex;align-items:center;justify-content:center;z-index:1000}
-.login-box{background:#fff;border-radius:18px;padding:40px 34px;width:min(92vw,380px);text-align:center;box-shadow:0 24px 60px rgba(0,0,0,.35)}
-.login-box h1{font-size:22px;color:var(--navy);margin-bottom:6px}
-.login-box p{color:var(--sub);font-size:13px;margin-bottom:22px}
-.login-box input{width:100%;text-align:center;font-size:17px;letter-spacing:3px;padding:12px}
-.login-box .btn-main{width:100%;margin-top:14px}
-#loginErr{color:var(--red);font-size:13px;margin-top:10px;min-height:18px}
+  #lockScreen{position:fixed;inset:0;background:var(--navy);display:flex;align-items:center;justify-content:center;z-index:1000}
+  .lockBox{background:#fff;border-radius:16px;padding:40px 32px;width:90%;max-width:360px;text-align:center}
+  .lockBox .emblem{width:56px;height:56px;border-radius:50%;background:var(--gold-bg);border:2px solid var(--gold);display:flex;align-items:center;justify-content:center;font-size:26px;margin:0 auto 16px}
+  .lockBox h1{font-size:19px;color:var(--navy);margin-bottom:6px}
+  .lockBox p{font-size:13px;color:var(--muted);margin-bottom:20px}
+  .lockBox input{width:100%;padding:13px;border:1.5px solid var(--line);border-radius:10px;font-size:16px;text-align:center;margin-bottom:12px}
+  .lockBox input:focus{outline:none;border-color:var(--gold)}
+  .lockBox button{width:100%;padding:13px;background:var(--navy);color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:700}
+  .lockErr{color:var(--red);font-size:13px;margin-top:10px;display:none}
 
-/* ── 헤더 ── */
-header{background:var(--navy);color:#fff;padding:14px 20px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;position:sticky;top:0;z-index:100}
-header .title{font-size:19px;font-weight:800;letter-spacing:-.3px}
-header .title small{display:block;font-size:11px;font-weight:500;color:#B9C3DB;letter-spacing:1px}
-.header-right{margin-left:auto;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
-.badge{font-size:12px;padding:4px 12px;border-radius:99px;font-weight:700}
-.badge.admin{background:var(--gold);color:#3A2E00}
-.badge.viewer{background:#44536F;color:#DDE4F2}
-#saveStatus{font-size:12px;color:#AEB9D2}
-.btn-save{background:var(--gold);color:#2C2300;border:none;border-radius:8px;padding:8px 16px;font-weight:800;font-size:14px}
-.btn-save:hover{filter:brightness(1.08)}
-.btn-ghost{background:transparent;color:#C6CFE2;border:1px solid #44536F;border-radius:8px;padding:7px 12px;font-size:13px}
+  header{background:var(--navy);color:#fff;padding:16px 20px}
+  .hWrap{max-width:960px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+  header h1{font-size:17px;font-weight:800;letter-spacing:-.3px}
+  header .sub{font-size:11px;color:#aeb8cc;margin-top:2px}
+  #syncBadge{font-size:11px;padding:4px 10px;border-radius:20px;background:rgba(255,255,255,.12);white-space:nowrap}
+  #syncBadge.on{background:var(--green);color:#fff}
+  #syncBadge.off{background:var(--red);color:#fff}
+  body.viewer .adminOnly{display:none!important}
+  #modeBadge{font-size:11px;padding:4px 10px;border-radius:20px;border:none;font-weight:700;cursor:pointer;white-space:nowrap}
+  #modeBadge.admin{background:var(--gold);color:#fff}
+  #modeBadge.viewer{background:rgba(255,255,255,.15);color:#cfd6e4}
+  #pwSettingsBtn{font-size:11px;padding:4px 10px;border-radius:20px;border:none;background:rgba(255,255,255,.15);color:#cfd6e4;font-weight:700;cursor:pointer;white-space:nowrap}
 
-/* ── 탭 ── */
-nav{background:#fff;border-bottom:1px solid var(--line);display:flex;overflow-x:auto;position:sticky;top:62px;z-index:99}
-nav button{flex:0 0 auto;background:none;border:none;padding:13px 18px;font-size:14.5px;font-weight:600;color:var(--sub);border-bottom:3px solid transparent;white-space:nowrap}
-nav button.active{color:var(--navy);border-bottom-color:var(--gold);font-weight:800}
+  nav{background:#fff;border-bottom:1px solid var(--line);position:sticky;top:0;z-index:50}
+  .tabs{max-width:960px;margin:0 auto;display:flex}
+  .tabs button{flex:1;padding:13px 8px;background:none;border:none;font-size:14px;font-weight:600;color:var(--muted);border-bottom:2.5px solid transparent}
+  .tabs button.active{color:var(--navy);border-bottom-color:var(--gold)}
 
-main{max-width:1200px;margin:0 auto;padding:20px 16px 80px}
-section{display:none}
-section.active{display:block}
-.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px;margin-bottom:16px}
-.card h2{font-size:16px;font-weight:800;color:var(--navy);margin-bottom:12px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-.card h2 .tip{font-size:12px;font-weight:500;color:var(--sub)}
-.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
-.btn-main{background:var(--navy);color:#fff;border:none;border-radius:8px;padding:9px 16px;font-weight:700;font-size:14px}
-.btn-main:hover{background:var(--navy2)}
-.btn-sub{background:#EDF0F6;color:var(--navy);border:1px solid var(--line);border-radius:8px;padding:8px 13px;font-size:13px;font-weight:600}
-.btn-danger{background:#FDEBEB;color:var(--red);border:1px solid #F5C6C6;border-radius:8px;padding:7px 12px;font-size:13px;font-weight:600}
-.admin-only{display:initial}
-body.viewer .admin-only{display:none !important}
+  main{max-width:960px;margin:0 auto;padding:18px 14px 80px}
+  .page{display:none}
+  .page.active{display:block}
 
-/* ── 요약 카드 ── */
-.stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:16px}
-.stat{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;border-top:4px solid var(--navy)}
-.stat .lbl{font-size:12.5px;color:var(--sub);font-weight:600}
-.stat .val{font-size:26px;font-weight:800;color:var(--navy);margin-top:4px;letter-spacing:-.5px}
-.stat .val small{font-size:13px;color:var(--sub);font-weight:600}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px;margin-bottom:14px}
+  .cardTitle{font-size:15px;font-weight:800;color:var(--navy);margin-bottom:14px;display:flex;align-items:center;gap:8px}
+  .cardTitle::before{content:"";width:4px;height:16px;background:var(--gold);border-radius:2px}
 
-/* ── 표 ── */
-.tbl-wrap{overflow-x:auto}
-table{width:100%;border-collapse:collapse;font-size:14px}
-th{background:#F0F3F8;color:var(--navy);font-weight:700;padding:9px 8px;border:1px solid var(--line);white-space:nowrap;font-size:13px}
-td{padding:7px 8px;border:1px solid var(--line);text-align:center;white-space:nowrap}
-td input,td select{width:100%;min-width:64px;padding:5px 6px;font-size:13.5px;text-align:center}
-td input[type=text]{min-width:88px}
-tr.rank-1 td:first-child{font-weight:800;color:#B8860B}
-.rate-cell{font-weight:700;color:var(--blue)}
-.medal{font-size:15px}
+  .formRow{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+  input[type=text],input[type=date],select{padding:11px 12px;border:1.5px solid var(--line);border-radius:9px;font-size:14px;background:#fff}
+  input:focus,select:focus{outline:none;border-color:var(--gold)}
+  .grow{flex:1;min-width:130px}
+  .btn{padding:11px 18px;border:none;border-radius:9px;font-size:14px;font-weight:700}
+  .btnNavy{background:var(--navy);color:#fff}
+  .btnGold{background:var(--gold);color:#fff}
+  .btnGhost{background:#fff;border:1.5px solid var(--line);color:var(--ink)}
+  .btnSm{padding:6px 11px;font-size:12px;border-radius:7px}
+  .btnRed{background:var(--red-bg);color:var(--red);border:none}
 
-/* ── 달력 ── */
-.cal-head{display:flex;align-items:center;justify-content:center;gap:14px;margin-bottom:12px}
-.cal-head h3{font-size:18px;color:var(--navy);min-width:130px;text-align:center}
-.cal-head button{background:#EDF0F6;border:1px solid var(--line);border-radius:8px;width:34px;height:34px;font-size:15px}
-.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
-.cal-dow{text-align:center;font-size:12.5px;font-weight:700;color:var(--sub);padding:6px 0}
-.cal-dow:first-child{color:var(--red)}
-.cal-day{background:#fff;border:1px solid var(--line);border-radius:8px;min-height:86px;padding:5px;font-size:12px;cursor:pointer;position:relative}
-.cal-day:hover{border-color:#9FB4E8}
-.cal-day.other{background:#F7F8FB;color:#B6BCCB}
-.cal-day.today{border:2px solid var(--gold)}
-.cal-day .dnum{font-weight:700;font-size:12.5px}
-.cal-day.sun .dnum{color:var(--red)}
-.cal-day.sat .dnum{color:var(--blue)}
-.ev-chip{display:block;border-radius:5px;padding:2px 5px;margin-top:3px;font-size:11px;font-weight:600;color:#1C2333;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.ev-chip.dark{color:#fff}
-.legend{display:flex;gap:12px;flex-wrap:wrap;margin-top:12px;font-size:12.5px;color:var(--sub)}
-.legend span{display:flex;align-items:center;gap:5px}
-.legend i{width:13px;height:13px;border-radius:4px;display:inline-block}
+  .roomIconBtn{padding:9px 10px;border:1.5px solid var(--line);border-radius:9px;background:#fff;font-size:16px;width:44px;text-align:center}
+  .iconPick{display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap}
+  .iconPick button{width:38px;height:38px;font-size:18px;border:1.5px solid var(--line);border-radius:9px;background:#fff}
+  .iconPick button:hover{border-color:var(--gold)}
 
-/* ── 차트 ── */
-.m2grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-@media(max-width:760px){.m2grid{grid-template-columns:1fr}}
-.chart-box{position:relative;height:340px;margin-top:8px}
-.chart-box.sm{height:280px}
-@media(max-width:640px){.chart-box{height:280px}.chart-box.sm{height:240px}}
+  .docItem{background:#fff;border:1px solid var(--line);border-radius:12px;padding:15px 16px;margin-bottom:10px;cursor:pointer;transition:.15s}
+  .docItem:hover{border-color:var(--gold)}
+  .docTop{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+  .docName{font-size:15px;font-weight:800;color:var(--navy)}
+  .roomName{font-size:26px;font-weight:900;color:var(--navy);display:flex;align-items:center;gap:10px}
+  .docMeta{font-size:12px;color:var(--muted);margin-top:4px}
+  .docMeta b{color:var(--ink);font-weight:600}
+  .progWrap{margin-top:11px}
+  .progBar{height:7px;background:var(--line);border-radius:4px;overflow:hidden}
+  .progFill{height:100%;background:linear-gradient(90deg,var(--gold),#d4ab45);border-radius:4px;transition:width .4s}
+  .progFill.done{background:var(--green)}
+  .progTxt{font-size:12px;color:var(--muted);margin-top:5px;display:flex;justify-content:space-between}
+  .chip{display:inline-block;font-size:11px;padding:3px 9px;border-radius:12px;background:var(--gold-bg);color:var(--gold);font-weight:700;margin:2px 3px 0 0}
 
-/* ── 사진 갤러리 ── */
-.photo-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
-.photo-grid img{width:100%;height:130px;object-fit:cover;border-radius:10px;border:1px solid var(--line);cursor:zoom-in}
-.act-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px}
-.act-card{background:#fff;border:1px solid var(--line);border-radius:14px;overflow:hidden}
-.act-card .imgs{display:flex;gap:2px;height:150px}
-.act-card .imgs img{flex:1;min-width:0;object-fit:cover;cursor:zoom-in}
-.act-card .body{padding:13px 15px}
-.act-card .body h4{font-size:15.5px;color:var(--navy);margin-bottom:7px}
-.act-card .meta{font-size:13px;color:var(--sub);line-height:1.65}
-.act-card .meta b{color:var(--ink);font-weight:600}
-.act-card .desc{font-size:13.5px;margin-top:8px;line-height:1.6;white-space:pre-wrap}
-.act-card .foot{padding:0 15px 13px;display:flex;gap:8px}
+  .backBar{display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap}
+  .memberRow{display:flex;align-items:center;justify-content:space-between;background:#fff;border:1px solid var(--line);border-radius:11px;padding:12px 14px;margin-bottom:8px}
+  .memberRow.confirmed{background:var(--green-bg);border-color:#bfe3cf}
+  .mInfo .mName{font-size:15px;font-weight:700}
+  .mInfo .mSub{font-size:12px;color:var(--muted);margin-top:2px}
+  .confirmBtn{padding:9px 16px;border-radius:9px;border:none;font-size:13px;font-weight:800;background:var(--navy);color:#fff}
+  .confirmedTag{font-size:12px;font-weight:800;color:var(--green);text-align:right}
+  .confirmedTag small{display:block;font-weight:500;color:var(--muted);font-size:11px;margin-top:2px}
+  .statLine{display:flex;gap:10px;margin-bottom:14px}
+  .statBox{flex:1;background:#fff;border:1px solid var(--line);border-radius:11px;padding:12px;text-align:center}
+  .statBox .n{font-size:22px;font-weight:900;color:var(--navy)}
+  .statBox .l{font-size:11px;color:var(--muted);margin-top:2px}
+  .statBox.g .n{color:var(--green)}
+  .statBox.r .n{color:var(--red)}
 
-/* ── 모달 ── */
-.modal-bg{position:fixed;inset:0;background:rgba(15,20,35,.55);display:none;align-items:center;justify-content:center;z-index:500;padding:16px}
-.modal-bg.open{display:flex}
-.modal{background:#fff;border-radius:16px;padding:22px;width:min(94vw,540px);max-height:88vh;overflow-y:auto}
-.modal h3{font-size:17px;color:var(--navy);margin-bottom:14px}
-.form-g{margin-bottom:11px}
-.form-g label{display:block;font-size:13px;font-weight:700;color:var(--navy);margin-bottom:5px}
-.form-g input,.form-g select,.form-g textarea{width:100%}
-.form-g textarea{min-height:80px;resize:vertical}
-.modal .acts{display:flex;gap:8px;justify-content:flex-end;margin-top:16px}
-.cat-pick{display:flex;gap:7px;flex-wrap:wrap}
-.cat-pick button{border:2px solid transparent;border-radius:8px;padding:6px 12px;font-size:13px;font-weight:700}
-.cat-pick button.sel{border-color:var(--navy)}
-#lightbox{position:fixed;inset:0;background:rgba(0,0,0,.9);display:none;align-items:center;justify-content:center;z-index:900;cursor:zoom-out}
-#lightbox.open{display:flex}
-#lightbox img{max-width:94vw;max-height:92vh;border-radius:8px}
+  .listRow{display:flex;align-items:center;justify-content:space-between;padding:11px 4px;border-bottom:1px solid var(--line);gap:8px}
+  .listRow:last-child{border-bottom:none}
+  .checkGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px;margin:10px 0}
+  .checkGrid label{display:flex;align-items:center;gap:7px;font-size:13px;background:var(--paper);padding:8px 10px;border-radius:8px;cursor:pointer}
+  .checkGrid input{accent-color:var(--gold);width:16px;height:16px}
 
-/* ── 토스트/배너 ── */
-#toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--navy);color:#fff;padding:11px 22px;border-radius:99px;font-size:14px;font-weight:600;opacity:0;transition:.25s;z-index:950;pointer-events:none}
-#toast.show{opacity:1}
-#fbBanner{display:none;background:#FFF6DE;border:1px solid #EAD489;color:#6B5400;font-size:13px;padding:10px 16px;border-radius:10px;margin-bottom:14px;line-height:1.55}
-.my-card{background:linear-gradient(135deg,#FFFBEF,#FFF);border:2px solid var(--gold);border-radius:14px;padding:16px 18px;margin-bottom:14px}
-.my-card .head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:10px}
-.my-card .head h3{font-size:17px;color:var(--navy)}
-.my-card .rankchips{display:flex;gap:8px;flex-wrap:wrap;margin-left:auto}
-.my-card .chip{background:var(--navy);color:#fff;border-radius:99px;padding:5px 13px;font-size:13px;font-weight:800}
-.my-card .chip.gold{background:var(--gold);color:#3A2E00}
-.my-card .nums{display:flex;gap:18px;flex-wrap:wrap;font-size:13.5px;color:var(--sub)}
-.my-card .nums b{color:var(--ink);font-size:16px}
-.seg{display:inline-flex;border:1px solid var(--line);border-radius:9px;overflow:hidden}
-.seg button{border:none;background:#fff;padding:8px 14px;font-size:13.5px;font-weight:600;color:var(--sub)}
-.seg button.active{background:var(--navy);color:#fff}
-.empty{color:var(--sub);font-size:14px;text-align:center;padding:26px 0}
-@media(max-width:640px){
-  header{padding:12px 14px}
-  header .title{font-size:16px}
-  .cal-day{min-height:64px;font-size:10px}
-  .ev-chip{font-size:9.5px;padding:1px 3px}
-}
+  .modal{position:fixed;inset:0;background:rgba(20,25,40,.55);display:none;align-items:center;justify-content:center;z-index:200;padding:16px}
+  .modal.show{display:flex}
+  .modalBox{background:#fff;border-radius:16px;padding:24px;width:100%;max-width:440px;max-height:88vh;overflow-y:auto}
+  .modalBox h3{font-size:16px;color:var(--navy);margin-bottom:16px}
+  #qrTarget{display:flex;justify-content:center;margin:14px 0}
+  .qrUrl{font-size:11px;color:var(--muted);word-break:break-all;background:var(--paper);padding:8px;border-radius:8px;margin-bottom:12px}
+  .empty{text-align:center;color:var(--muted);font-size:13px;padding:30px 0}
+  .notice{font-size:12px;color:var(--muted);background:var(--gold-bg);border:1px solid #eddfb8;border-radius:9px;padding:10px 12px;margin-bottom:14px;line-height:1.6}
 </style>
 </head>
 <body>
 
-<!-- ═══ 로그인 ═══ -->
-<div id="loginScreen">
-  <div class="login-box">
-    <h1>교회 전체현황</h1>
-    <p>비밀번호를 입력하세요<br>(열람용 / 관리자용)</p>
-    <input type="password" id="pwInput" placeholder="비밀번호" autocomplete="off">
-    <button class="btn-main" onclick="tryLogin()">입장하기</button>
-    <div id="loginErr"></div>
+<div id="lockScreen">
+  <div class="lockBox">
+    <div class="emblem">🗂️</div>
+    <h1 id="lockTitle">세종기획 취합 대시보드</h1>
+    <p>보안 취합 시스템입니다.<br>열람자 또는 관리자 암호를 입력하세요.</p>
+    <input type="password" id="pwInput" placeholder="암호 입력" onkeydown="if(event.key==='Enter')checkPw()">
+    <button onclick="checkPw()">접속하기</button>
+    <div class="lockErr" id="pwErr">암호가 올바르지 않습니다.</div>
   </div>
 </div>
 
 <header>
-  <div class="title">교회 전체현황 대시보드<small>CHURCH STATUS BOARD</small></div>
-  <div class="header-right">
-    <span id="roleBadge" class="badge viewer">열람</span>
-    <span id="saveStatus">-</span>
-    <button class="btn-save admin-only" onclick="saveAll(true)">💾 저장</button>
-    <button class="btn-ghost" onclick="logout()">잠금</button>
+  <div class="hWrap">
+    <div>
+      <h1 id="siteTitle">🗂️ 세종기획 취합 대시보드</h1>
+      <div class="sub" id="siteDept">세종 선교센터 · 기획부</div>
+    </div>
+    <div style="display:flex;gap:6px;align-items:center">
+      <button id="pwSettingsBtn" class="adminOnly" onclick="openPwSettings()">⚙️ 설정</button>
+      <button id="modeBadge" class="viewer" onclick="toggleMode()">👤 열람자</button>
+      <span id="syncBadge">연결 확인중…</span>
+    </div>
   </div>
 </header>
 
-<nav id="tabs">
-  <button data-tab="schedule" class="active">📅 교회일정</button>
-  <button data-tab="metrics">📊 지표현황</button>
-  <button data-tab="worship">🙏 예배출석</button>
-  <button data-tab="center">🏫 선교센터 출석관리</button>
-  <button data-tab="missioner">👥 사명자현황</button>
-  <button data-tab="activity">📷 활동사진</button>
+<nav>
+  <div class="tabs">
+    <button class="active" onclick="goTab('rooms',this)">🗂️ 방 목록</button>
+    <button class="adminOnly" onclick="goTab('groups',this)">👥 대상자 그룹</button>
+    <button class="adminOnly" onclick="goTab('members',this)">📋 명단 관리</button>
+  </div>
 </nav>
 
 <main>
-<div id="fbBanner">⚠️ <b>Firebase 미연결 상태</b> — 지금은 이 기기(브라우저)에만 저장됩니다. 파일 상단의 <b>FIREBASE_CONFIG</b>에 본인 Firebase 설정을 넣으면 모든 기기에서 실시간 공유됩니다.</div>
-
-<!-- ═══ 1. 교회일정 ═══ -->
-<section id="sec-schedule" class="active">
-  <div class="card">
-    <h2>교회일정 <span class="tip">날짜를 누르면 일정을 추가할 수 있어요 (관리자)</span></h2>
-    <div class="cal-head">
-      <button onclick="calMove(-1)">‹</button>
-      <h3 id="calTitle"></h3>
-      <button onclick="calMove(1)">›</button>
-      <button class="btn-sub" onclick="calToday()" style="width:auto">오늘</button>
+  <!-- ══════ 방 목록 ══════ -->
+  <div class="page active" id="page-rooms">
+    <div class="card adminOnly">
+      <div class="cardTitle">새 방 만들기</div>
+      <div class="notice">"방"은 하나의 취합 목적 단위입니다. 예: 교재열람방, 취합방(참석확인), 설문방 등. 방마다 항목을 등록하고, 대상자가 확인하면 실시간으로 집계됩니다.</div>
+      <div class="formRow">
+        <input type="text" id="roomIcon" class="roomIconBtn" maxlength="2" value="📋" placeholder="🗂️">
+        <input type="text" id="roomName" class="grow" placeholder="방 이름 (예: 교재열람방, 취합방)">
+      </div>
+      <div class="iconPick" id="iconPickRoom"></div>
+      <button class="btn btnNavy" onclick="addRoom()">＋ 방 만들기</button>
     </div>
-    <div class="cal-grid" id="calGrid"></div>
-    <div class="legend" id="calLegend"></div>
+    <div id="roomList"></div>
   </div>
-  <div class="card">
-    <h2>이번 달 일정 목록</h2>
-    <div id="monthEvList"></div>
-  </div>
-</section>
 
-<!-- ═══ 2. 지표현황 ═══ -->
-<section id="sec-metrics">
-  <div class="card">
-    <h2>기획부 지표 현황 <span class="tip">1~7월 확정 · 8월부터 당월 수치 입력 시 누적·%·순위 자동 계산</span></h2>
-    <div class="row" id="m2Tabs" style="gap:5px;flex-wrap:wrap"></div>
-  </div>
-  <div id="m2SejCard"></div>
-  <div class="stat-grid" id="metricStats"></div>
-  <div class="card">
-    <h2>지역별 상세 <span class="tip">관리자: 1~7월은 확정값 직접수정 가능 · 8월부터는 당월만 입력하면 누적 자동계산</span></h2>
-    <div class="tbl-wrap"><table id="m2Tbl">
-      <thead>
-        <tr>
-          <th rowspan="2">지역</th>
-          <th rowspan="2">전년말<br>재적</th><th rowspan="2">전도<br>재적</th>
-          <th colspan="3" style="background:#DCEAFB;color:#1B4E82">① 센터 누적등록률</th>
-          <th colspan="4" style="background:#D6F0E5;color:#12704F">② 센터 누적종강률</th>
-          <th colspan="3" style="background:#F6E7CC;color:#8A5A12">③ 입교율</th>
-          <th rowspan="2" style="background:#E7E5FA;color:#4B3FA6">④ 출석률<br>(%)</th>
-        </tr>
-        <tr>
-          <th style="background:#EDF5FD">당월<br>등록</th><th style="background:#EDF5FD">누적<br>등록</th><th style="background:#EDF5FD">등록률<br>(÷전도재적)</th>
-          <th style="background:#E6F7EF">종강<br>누적등록</th><th style="background:#E6F7EF">당월<br>종강</th><th style="background:#E6F7EF">누적<br>종강</th><th style="background:#E6F7EF">종강률<br>(÷종강누적등록)</th>
-          <th style="background:#FBF2E0">당월<br>입교</th><th style="background:#FBF2E0">누적<br>입교</th><th style="background:#FBF2E0">입교율<br>(÷전년말재적)</th>
-        </tr>
-      </thead>
-      <tbody></tbody>
-    </table></div>
-  </div>
-  <div class="m2grid">
-    <div class="card" style="margin-bottom:0"><h2 id="m2t_regRate">센터등록률</h2><div class="chart-box sm"><canvas id="m2c_regRate"></canvas></div></div>
-    <div class="card" style="margin-bottom:0"><h2 id="m2t_finRate">센터종강률</h2><div class="chart-box sm"><canvas id="m2c_finRate"></canvas></div></div>
-    <div class="card" style="margin-bottom:0"><h2 id="m2t_enrRate">입교율</h2><div class="chart-box sm"><canvas id="m2c_enrRate"></canvas></div></div>
-    <div class="card" style="margin-bottom:0"><h2 id="m2t_attRate">출석률</h2><div class="chart-box sm"><canvas id="m2c_attRate"></canvas></div></div>
-  </div>
-</section>
-
-<!-- ═══ 3. 예배출석 ═══ -->
-<section id="sec-worship">
-  <div class="card">
-    <h2>주간 출석파일 업로드 <span class="tip">매주 공유되는 '주일출석현황' HTML을 올리면 자동 반영됩니다</span>
-      <span style="margin-left:auto" class="admin-only">
-        <label class="btn-main" style="cursor:pointer">📂 파일 업로드<input type="file" id="wFile" accept=".html,.htm" hidden onchange="wImport(this)"></label>
-      </span>
-    </h2>
-    <div class="row" style="margin-bottom:12px">
-      <label style="font-size:13px;font-weight:700;color:var(--navy)">주일</label>
-      <select id="wWeekSel" onchange="renderWorship()"></select>
-      <label style="font-size:13px;font-weight:700;color:var(--navy)">지파 필터</label>
-      <select id="wTribeSel" onchange="renderWorship()"><option value="">전체 지파</option></select>
+  <!-- ══════ 방 내부: 항목 목록 ══════ -->
+  <div class="page" id="page-roomview">
+    <div class="backBar">
+      <button class="btn btnGhost btnSm" onclick="closeRoom()">← 방 목록으로</button>
     </div>
-    <div class="stat-grid" id="wStats"></div>
-    <div id="wMyCard"></div>
-  </div>
-  <div class="card">
-    <h2>순위 <span class="tip">실질출석률 기준 · 표/막대 클릭 시 상세</span>
-      <span style="margin-left:auto" class="seg" id="wLevelSeg">
-        <button data-lv="tribe" class="active">지파별</button>
-        <button data-lv="church">교회별</button>
-        <button data-lv="dept">부서별</button>
-      </span>
-    </h2>
-    <div class="tbl-wrap"><table id="wRankTbl">
-      <thead><tr><th>순위</th><th>구분</th><th>재적</th><th>현장</th><th>온라인</th><th>대예</th><th>전체출석</th><th>현장률</th><th>전체률</th><th>실질률</th></tr></thead>
-      <tbody></tbody>
-    </table></div>
-    <div class="chart-box"><canvas id="wChart"></canvas></div>
-  </div>
-  <div class="card">
-    <h2>주간 추이 <span class="tip">주일별 출석률 변화 (지파 필터 적용됨)</span></h2>
-    <div class="chart-box sm"><canvas id="wTrend"></canvas></div>
-  </div>
-</section>
+    <div class="roomName" id="roomViewTitle" style="margin-bottom:14px"></div>
 
-<!-- ═══ 4. 선교센터 ═══ -->
-<section id="sec-center">
-  <div class="card">
-    <h2>선교센터 출석관리 현황 <span class="tip">담당자가 선교센터 대시보드에서 수정하면 실시간 자동 반영</span>
-      <span style="margin-left:auto" class="row">
-        <select id="cMonthSel" onchange="renderCenter()"><option value="">전체 월</option></select>
-        <select id="cChurchSel" onchange="renderCenter()"><option value="">전체 교회</option></select>
-        <a class="btn-sub" href="https://dbswjd924-tech.github.io/sejong-center/" target="_blank" style="text-decoration:none">✏️ 원본 대시보드 열기</a>
-      </span>
-    </h2>
-    <div id="cSync" style="font-size:12.5px;color:var(--sub);margin-bottom:10px">연동 확인 중…</div>
-    <div class="stat-grid" id="cStats"></div>
+    <div class="card adminOnly">
+      <div class="cardTitle">새 항목 등록</div>
+      <div class="formRow">
+        <input type="text" id="itemTitle" class="grow" placeholder="제목 (예: 교재명 또는 활동명)">
+        <input type="text" id="itemTopic" class="grow" placeholder="주제 / 설명">
+        <input type="date" id="itemDate">
+      </div>
+      <div class="formRow">
+        <input type="text" id="itemOptions" class="grow" placeholder="선택 항목 (쉼표로 구분, 비워두면 단순 확인 · 예: 참석,불참,미정)">
+      </div>
+      <div style="font-size:13px;font-weight:700;margin:6px 0 4px">⏰ 마감시간 (선택)</div>
+      <div class="formRow">
+        <input type="datetime-local" id="itemDeadline" class="grow">
+      </div>
+      <div class="checkGrid" id="itemReminders">
+        <label><input type="checkbox" value="180"> 3시간전</label>
+        <label><input type="checkbox" value="120"> 2시간전</label>
+        <label><input type="checkbox" value="60"> 1시간전</label>
+        <label><input type="checkbox" value="30"> 30분전</label>
+        <label><input type="checkbox" value="10"> 10분전</label>
+      </div>
+      <div style="font-size:13px;font-weight:700;margin:6px 0 4px">대상자 그룹 선택 (복수 가능)</div>
+      <div class="checkGrid" id="itemGroupPick"><div class="empty" style="grid-column:1/-1;padding:10px 0">그룹을 먼저 등록하세요</div></div>
+      <button class="btn btnNavy" onclick="addItem()">＋ 항목 등록</button>
+    </div>
+    <div id="itemList"></div>
   </div>
-  <div class="card">
-    <h2>교회별 출석률 <span class="tip">막대 클릭 → 해당 교회 기수별 상세</span></h2>
-    <div class="chart-box"><canvas id="cChart"></canvas></div>
-  </div>
-  <div class="card">
-    <h2>기수별 상세 <span class="tip">출석률 30% 미만 주황 · 20% 미만 빨강</span></h2>
-    <div class="tbl-wrap"><table id="cTbl">
-      <thead><tr><th>월</th><th>교회</th><th>센터</th><th>기수</th><th>수강신청</th><th>면접</th><th>센터등록</th><th>등록률</th><th>총원</th><th>전주출석</th><th>금주출석</th><th>출석률</th><th>전주대비</th></tr></thead>
-      <tbody></tbody>
-    </table></div>
-  </div>
-</section>
 
-<!-- ═══ 5. 사명자현황 ═══ -->
-<section id="sec-missioner">
-  <div class="card">
-    <h2>사명자현황 <span class="tip">이름·직책만 표시 · 전체현황은 겸직(중복) 제외 인원수</span>
-      <span style="margin-left:auto" class="row admin-only">
-        <button class="btn-sub" onclick="rAdd()">＋ 인원 추가</button>
-        <label class="btn-main" style="cursor:pointer">📂 엑셀 재업로드<input type="file" id="rFile" accept=".xlsx,.xls" hidden onchange="rImport(this)"></label>
-      </span>
-    </h2>
-    <div class="row" style="margin-bottom:14px"><span class="seg" id="rSeg">
-      <button data-v="sum" class="active">전체현황</button>
-      <button data-v="dept">24부서</button>
-      <button data-v="hoe">각 회</button>
-      <button data-v="center">선교센터</button>
-    </span><span class="tip" id="rHint"></span></div>
-    <div id="rBody"></div>
+  <!-- ══════ 항목 상세 (확인 화면) ══════ -->
+  <div class="page" id="page-detail">
+    <div class="backBar">
+      <button class="btn btnGhost btnSm" onclick="closeDetail()">← 목록으로</button>
+      <button class="btn btnGhost btnSm adminOnly" onclick="editDoc()">✏️ 항목 수정</button>
+      <button class="btn btnGhost btnSm adminOnly" onclick="resendNotify()">🔔 미확인자 전체 재발송</button>
+      <button class="btn btnGold btnSm adminOnly" onclick="showQR()">🔗 QR 코드</button>
+      <button class="btn btnRed btnSm adminOnly" onclick="deleteDoc()">항목 삭제</button>
+    </div>
+    <div class="card">
+      <div id="detailHead"></div>
+      <div class="statLine">
+        <div class="statBox"><div class="n" id="stTotal">0</div><div class="l">대상 인원</div></div>
+        <div class="statBox g"><div class="n" id="stDone">0</div><div class="l">확인 완료</div></div>
+        <div class="statBox r"><div class="n" id="stLeft">0</div><div class="l">미확인</div></div>
+      </div>
+      <div class="progBar" style="margin-bottom:10px"><div class="progFill" id="detailProg" style="width:0%"></div></div>
+      <div id="optSummary" style="margin-bottom:14px;display:none"></div>
+      <div id="memberList"></div>
+    </div>
   </div>
-</section>
 
-<!-- ═══ 6. 활동사진 ═══ -->
-<section id="sec-activity">
-  <div class="card">
-    <h2>활동사진 <span class="tip">행사 기록 + 사진 최대 3장</span>
-      <span style="margin-left:auto" class="admin-only"><button class="btn-main" onclick="actOpen()">+ 활동 등록</button></span>
-    </h2>
-    <div class="act-grid" id="actGrid"></div>
+  <!-- ══════ 대상자 그룹 ══════ -->
+  <div class="page" id="page-groups">
+    <div class="card">
+      <div class="cardTitle">그룹 만들기</div>
+      <div class="notice">모든 방(교재열람방, 취합방 등)이 이 그룹 명단을 공유합니다. 예시: 교회운영진(운영중진·지원중진·행정중진), 선교센터 사명자, 24부서장 등.</div>
+      <div class="formRow">
+        <input type="text" id="grpName" class="grow" placeholder="그룹명 (예: 교회운영진)">
+        <button class="btn btnNavy" onclick="addGroup()">＋ 그룹 추가</button>
+      </div>
+    </div>
+    <div id="groupList"></div>
   </div>
-</section>
+
+  <!-- ══════ 명단 관리 ══════ -->
+  <div class="page" id="page-members">
+    <div class="card">
+      <div class="cardTitle">대상자 등록</div>
+      <div class="notice">각 대상자는 등록 즉시 <b>고유코드(🔑)</b>가 발급됩니다. 이 코드를 개별로 전달하면, 대상자가 텔레그램 세종취합봇에 코드를 입력해 본인 계정을 연동할 수 있습니다. 모든 방에 공통으로 적용됩니다.</div>
+      <div class="formRow">
+        <input type="text" id="mName" class="grow" placeholder="이름">
+        <input type="text" id="mDept" class="grow" placeholder="부서">
+        <input type="text" id="mPos" class="grow" placeholder="직책">
+        <input type="text" id="mEtc" class="grow" placeholder="기타">
+      </div>
+      <button class="btn btnNavy" onclick="addMember()">＋ 대상자 추가</button>
+    </div>
+    <div class="card">
+      <div class="cardTitle">전체 명단 <span id="mCount" style="color:var(--muted);font-weight:500;font-size:13px"></span></div>
+      <div id="memberMaster"></div>
+    </div>
+  </div>
 </main>
 
-<!-- ═══ 일정 모달 ═══ -->
-<div class="modal-bg" id="evModal">
-  <div class="modal">
-    <h3 id="evModalTitle">일정 추가</h3>
-    <div class="form-g"><label>일정명</label><input id="evTitle" placeholder="예: 총회 전체 예배"></div>
-    <div class="row">
-      <div class="form-g" style="flex:1"><label>날짜</label><input type="date" id="evDate"></div>
-      <div class="form-g" style="flex:1"><label>종료일(선택)</label><input type="date" id="evEnd"></div>
-    </div>
-    <div class="form-g"><label>분류</label><div class="cat-pick" id="evCats"></div></div>
-    <div class="form-g"><label>메모(선택)</label><input id="evMemo" placeholder="장소, 시간 등"></div>
-    <div class="acts">
-      <button class="btn-danger" id="evDelBtn" style="display:none" onclick="evDelete()">삭제</button>
-      <button class="btn-sub" onclick="closeModal('evModal')">닫기</button>
-      <button class="btn-main admin-only" onclick="evSave()">저장</button>
-    </div>
+<div class="modal" id="qrModal" onclick="if(event.target===this)this.classList.remove('show')">
+  <div class="modalBox" style="text-align:center">
+    <h3 id="qrTitle">QR 코드</h3>
+    <div id="qrTarget"></div>
+    <div class="qrUrl" id="qrUrl"></div>
+    <p style="font-size:12px;color:var(--muted);margin-bottom:14px">이 QR을 출력물 옆에 부착하거나 링크를 공유하세요.<br>스캔/접속하면 해당 항목 확인 화면으로 바로 이동합니다.</p>
+    <button class="btn btnGhost" onclick="document.getElementById('qrModal').classList.remove('show')">닫기</button>
   </div>
 </div>
 
-<!-- ═══ 활동 모달 ═══ -->
-<div class="modal-bg" id="actModal">
-  <div class="modal">
-    <h3 id="actModalTitle">활동 등록</h3>
-    <div class="form-g"><label>행사명</label><input id="aName"></div>
-    <div class="row">
-      <div class="form-g" style="flex:1"><label>일시</label><input type="datetime-local" id="aDT"></div>
-      <div class="form-g" style="flex:1"><label>장소</label><input id="aPlace"></div>
-    </div>
-    <div class="row">
-      <div class="form-g" style="flex:1"><label>대상</label><input id="aTarget" placeholder="예: 청년부 전체"></div>
-      <div class="form-g" style="flex:1"><label>규모(명)</label><input type="number" id="aSize" min="0"></div>
-    </div>
-    <div class="form-g"><label>내용</label><textarea id="aContent"></textarea></div>
-    <div class="form-g"><label>사진 (최대 3장)</label>
-      <input type="file" id="aFiles" accept="image/*" multiple>
-      <div class="photo-grid" id="aPreview" style="margin-top:8px"></div>
-    </div>
-    <div class="acts">
-      <button class="btn-sub" onclick="closeModal('actModal')">닫기</button>
-      <button class="btn-main" onclick="actSave()">저장</button>
-    </div>
-  </div>
+<div class="modal" id="editModal" onclick="if(event.target===this)this.classList.remove('show')">
+  <div class="modalBox" id="editBox"></div>
 </div>
-
-<!-- ═══ 사명자 편집 모달 ═══ -->
-<div class="modal-bg" id="rModal">
-  <div class="modal">
-    <h3 id="rModalTitle">인원 추가</h3>
-    <div class="row">
-      <div class="form-g" style="flex:1"><label>분류</label>
-        <select id="rCat"><option value="dept">24부서</option><option value="hoe">각 회</option><option value="center">선교센터</option></select></div>
-      <div class="form-g" style="flex:1"><label>소속(부서/회/센터)</label><input id="rGroup" placeholder="예: 기획부"></div>
-    </div>
-    <div class="row">
-      <div class="form-g" style="flex:1"><label>이름</label><input id="rName"></div>
-      <div class="form-g" style="flex:1"><label>직책</label><input id="rPos" placeholder="예: 부장"></div>
-    </div>
-    <div class="acts">
-      <button class="btn-danger" id="rDelBtn" style="display:none" onclick="rDelete()">삭제</button>
-      <button class="btn-sub" onclick="closeModal('rModal')">닫기</button>
-      <button class="btn-main" onclick="rSave()">저장</button>
-    </div>
-  </div>
-</div>
-
-<!-- ═══ 드릴다운 모달 ═══ -->
-<div class="modal-bg" id="ddModal">
-  <div class="modal" style="width:min(94vw,640px)">
-    <h3 id="ddTitle"></h3>
-    <div id="ddBody"></div>
-    <div class="acts"><button class="btn-sub" onclick="closeModal('ddModal')">닫기</button></div>
-  </div>
-</div>
-
-<div id="lightbox" onclick="this.classList.remove('open')"><img id="lbImg"></div>
-<div id="toast"></div>
 
 <script>
 /* ═══════════════════════════════════════════════
-   ★ 설정 — 이 부분만 수정하세요 ★
+   Firebase 설정 — sejong-dasnboard 프로젝트 (봇과 공유)
 ═══════════════════════════════════════════════ */
-const VIEW_PW  = "1234";        // 열람용 비밀번호
-const ADMIN_PW = "admin1234";   // 관리자용 비밀번호
-
-// Firebase 콘솔 > 프로젝트 설정 > 내 앱 > SDK 설정에서 복사해 붙여넣기
-const FIREBASE_CONFIG = {
+const firebaseConfig = {
   apiKey: "AIzaSyCCUHsCrrqQt2r655BpLwACXKN88RhiVkk",
   authDomain: "sejong-dasnboard.firebaseapp.com",
   databaseURL: "https://sejong-dasnboard-default-rtdb.firebaseio.com",
@@ -444,951 +285,72 @@ const FIREBASE_CONFIG = {
   messagingSenderId: "749054078144",
   appId: "1:749054078144:web:6a3124e6d0ea4eab975125"
 };
-const DB_ROOT = "churchDashboard";
-/* ═══════════════════════════════════════════════ */
 
-Chart.register(ChartDataLabels);
-Chart.defaults.font.family = "'Pretendard',sans-serif";
-Chart.defaults.plugins.datalabels.font = {weight:'700', size:11};
+const VIEWER_PASSWORD = "tpwhd1000!!";
+const ADMIN_PASSWORD  = "admin1000!!";
+/* 세종취합봇과 회원명단/그룹/설정/방을 공유하는 통합 루트 경로. 절대 바꾸지 마세요. */
+const DB_PATH = "sejong_unified";
 
-// ── 분류 색상 ──
-const CATS = [
-  {id:'chonghoe', name:'총회',   color:'#D32F2F', dark:true},
-  {id:'jipa',     name:'지파',   color:'#689F38', dark:true},
-  {id:'church',   name:'교회',   color:'#1976D2', dark:true},
-  {id:'jangnyeon',name:'장년부', color:'#F8BBD0', dark:false},
-  {id:'bunyeo',   name:'부녀부', color:'#FFCC80', dark:false},
-  {id:'cheongnyeon',name:'청년부',color:'#A5D6A7', dark:false},
-  {id:'haksaeng', name:'학생회', color:'#FFF176', dark:false},
-  {id:'yunyeon',  name:'유년회', color:'#81D4FA', dark:false},
-  {id:'etc',      name:'기타',   color:'#D7CCC8', dark:false},
-];
-const catOf = id => CATS.find(c=>c.id===id) || CATS[CATS.length-1];
+function viewerPw(){ return (DATA.settings && DATA.settings.viewerPw) || VIEWER_PASSWORD; }
+function adminPw(){ return (DATA.settings && DATA.settings.adminPw) || ADMIN_PASSWORD; }
 
-// ── 상태 ──
-let S = defaultState();
-let role = null;           // 'viewer' | 'admin'
-let db = null, dbRef = null, applyingRemote = false, saveTimer = null;
-let calY, calM, wLevel = 'tribe', metricSel = 'all';
-let actEditId = null, evEditId = null, evPickedCat = 'church';
-let charts = {};
+let DATA = { members:{}, groups:{}, rooms:{}, settings:{} };
+let db = null, useFirebase = false;
+let currentRoomId = null, currentDocId = null;
+const ICONS = ['📖','🙋','📅','📝','🎤','🏕️','⛪','🎓','📢','✅'];
 
-function defaultState(){
-  return {
-    schedule: {},
-    metrics: {entries: {}},
-    worship: {},          // { 'YYYY-MM-DD': {rows:[{jipa,church,dept,jj,tot,on,sil}]} }
-    center:  {rows: []},  // [{region,cohort,jj,att}]
-    missioners: {},       // { 'YYYY-MM': {photos:[b64]} }
-    activities: {},       // { id: {...} }
-    meta: {lastSaved: null}
-  };
-}
-
-// ═══ 인증 ═══
-function tryLogin(){
-  const v = document.getElementById('pwInput').value.trim();
-  if(v === ADMIN_PW) enter('admin');
-  else if(v === VIEW_PW) enter('viewer');
-  else document.getElementById('loginErr').textContent = '비밀번호가 올바르지 않습니다.';
-}
-function enter(r){
-  role = r;
-  sessionStorage.setItem('cdRole', r);
-  document.getElementById('loginScreen').style.display = 'none';
-  const b = document.getElementById('roleBadge');
-  b.textContent = r==='admin' ? '관리자' : '열람';
-  b.className = 'badge ' + (r==='admin'?'admin':'viewer');
-  document.body.classList.toggle('viewer', r!=='admin');
-  init();
-}
-function logout(){
-  sessionStorage.removeItem('cdRole');
-  location.reload();
-}
-document.getElementById('pwInput').addEventListener('keydown', e=>{ if(e.key==='Enter') tryLogin(); });
-
-// ═══ 저장/동기화 ═══
-function fbReady(){ return FIREBASE_CONFIG.apiKey && !FIREBASE_CONFIG.apiKey.includes('여기에'); }
-
-function initStore(){
-  if(fbReady()){
-    firebase.initializeApp(FIREBASE_CONFIG);
-    db = firebase.database();
-    dbRef = db.ref(DB_ROOT);
-    initCenterFeed();
-    dbRef.on('value', snap=>{
-      const v = snap.val();
-      if(!v) return;
-      applyingRemote = true;
-      S = Object.assign(defaultState(), v);
-      S.metrics = Object.assign({entries:{}}, v.metrics||{});
-      renderAll();
-      setStatus('실시간 동기화됨 · ' + timeNow());
-      applyingRemote = false;
-    });
-  } else {
-    document.getElementById('fbBanner').style.display = 'block';
-    const raw = localStorage.getItem(DB_ROOT);
-    if(raw){ try{ S = Object.assign(defaultState(), JSON.parse(raw)); }catch(e){} }
-    renderAll();
-    setStatus('로컬 저장 모드');
-  }
-}
-function markDirty(){
-  if(role!=='admin' || applyingRemote) return;
-  setStatus('저장 중…');
-  clearTimeout(saveTimer);
-  saveTimer = setTimeout(()=>saveAll(false), 900);   // 자동 저장
-}
-function saveAll(manual){
-  if(role!=='admin') return;
-  S.meta = {lastSaved: new Date().toISOString()};
-  if(dbRef){
-    dbRef.set(JSON.parse(JSON.stringify(S)))
-      .then(()=>{ setStatus('저장됨 · '+timeNow()); if(manual) toast('✅ 저장 완료 — 모든 기기에 반영됩니다'); })
-      .catch(e=>{ setStatus('⚠ 저장 실패'); toast('저장 실패: '+e.message); });
-  } else {
-    try{
-      localStorage.setItem(DB_ROOT, JSON.stringify(S));
-      setStatus('저장됨(이 기기) · '+timeNow());
-      if(manual) toast('✅ 이 기기에 저장됨 (Firebase 연결 시 전체 공유)');
-    }catch(e){ toast('저장 실패: 용량 초과 가능성 — 사진 수를 줄여주세요'); }
-  }
-}
-const setStatus = t => document.getElementById('saveStatus').textContent = t;
-const timeNow = () => new Date().toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'});
-function toast(msg){
-  const t = document.getElementById('toast');
-  t.textContent = msg; t.classList.add('show');
-  setTimeout(()=>t.classList.remove('show'), 2600);
-}
-
-// ═══ 초기화 ═══
+/* ───── 초기화 ───── */
 function init(){
-  const now = new Date();
-  calY = now.getFullYear(); calM = now.getMonth();
-  buildCatUI();
-  initStore();
-}
-function lastSunday(){
-  const d = new Date();
-  d.setDate(d.getDate() - d.getDay());
-  return ymd(d);
-}
-
-// 탭
-document.getElementById('tabs').addEventListener('click', e=>{
-  const b = e.target.closest('button'); if(!b) return;
-  document.querySelectorAll('#tabs button').forEach(x=>x.classList.toggle('active', x===b));
-  document.querySelectorAll('main section').forEach(s=>s.classList.toggle('active', s.id==='sec-'+b.dataset.tab));
-  renderAll();
-});
-function renderAll(){
-  renderCal(); renderMetrics(); renderWorship(); renderCenter(); renderMiss(); renderActs();
-}
-function closeModal(id){ document.getElementById(id).classList.remove('open'); }
-const ymd = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-const esc = s => String(s??'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2,7);
-const pct = (a,b) => b>0 ? (a/b*100) : 0;
-const f1 = n => (Math.round(n*10)/10).toLocaleString('ko-KR',{minimumFractionDigits:1,maximumFractionDigits:1});
-
-// ═══ 1. 교회일정 ═══
-function buildCatUI(){
-  document.getElementById('calLegend').innerHTML =
-    CATS.map(c=>`<span><i style="background:${c.color}"></i>${c.name}</span>`).join('');
-  document.getElementById('evCats').innerHTML =
-    CATS.map(c=>`<button type="button" style="background:${c.color};color:${c.dark?'#fff':'#1C2333'}" data-cat="${c.id}" onclick="pickCat('${c.id}')">${c.name}</button>`).join('');
-}
-function pickCat(id){
-  evPickedCat = id;
-  document.querySelectorAll('#evCats button').forEach(b=>b.classList.toggle('sel', b.dataset.cat===id));
-}
-function calMove(d){ calM += d; if(calM<0){calM=11;calY--;} if(calM>11){calM=0;calY++;} renderCal(); }
-function calToday(){ const n=new Date(); calY=n.getFullYear(); calM=n.getMonth(); renderCal(); }
-
-function renderCal(){
-  document.getElementById('calTitle').textContent = `${calY}년 ${calM+1}월`;
-  const first = new Date(calY, calM, 1);
-  const start = new Date(first); start.setDate(1 - first.getDay());
-  const todayStr = ymd(new Date());
-  let html = ['일','월','화','수','목','금','토'].map(d=>`<div class="cal-dow">${d}</div>`).join('');
-  const evs = Object.entries(S.schedule||{});
-  for(let i=0;i<42;i++){
-    const d = new Date(start); d.setDate(start.getDate()+i);
-    const ds = ymd(d);
-    const other = d.getMonth()!==calM;
-    const dow = d.getDay();
-    const dayEvs = evs.filter(([id,e]) => ds>=e.date && ds<=(e.endDate||e.date));
-    html += `<div class="cal-day ${other?'other':''} ${ds===todayStr?'today':''} ${dow===0?'sun':dow===6?'sat':''}" onclick="dayClick('${ds}',event)">
-      <div class="dnum">${d.getDate()}</div>
-      ${dayEvs.slice(0,3).map(([id,e])=>{ const c=catOf(e.category);
-        return `<span class="ev-chip ${c.dark?'dark':''}" style="background:${c.color}" onclick="evOpen('${id}');event.stopPropagation()">${esc(e.title)}</span>`;}).join('')}
-      ${dayEvs.length>3?`<span style="font-size:10px;color:var(--sub)">+${dayEvs.length-3}</span>`:''}
-    </div>`;
-  }
-  document.getElementById('calGrid').innerHTML = html;
-
-  // 이번 달 목록
-  const mm = `${calY}-${String(calM+1).padStart(2,'0')}`;
-  const list = evs.filter(([id,e])=>e.date.startsWith(mm)).sort((a,b)=>a[1].date.localeCompare(b[1].date));
-  document.getElementById('monthEvList').innerHTML = list.length ? list.map(([id,e])=>{
-    const c = catOf(e.category);
-    return `<div class="row" style="padding:9px 4px;border-bottom:1px solid var(--line)">
-      <i style="width:12px;height:12px;border-radius:4px;background:${c.color};flex:none"></i>
-      <b style="min-width:86px">${e.date.slice(5).replace('-','/')}${e.endDate&&e.endDate!==e.date?'~'+e.endDate.slice(5).replace('-','/'):''}</b>
-      <span style="flex:1">${esc(e.title)} <small style="color:var(--sub)">${esc(e.memo||'')}</small></span>
-      <span class="badge" style="background:${c.color};color:${c.dark?'#fff':'#333'}">${c.name}</span>
-      <button class="btn-sub admin-only" onclick="evOpen('${id}')">수정</button>
-    </div>`;
-  }).join('') : '<div class="empty">이번 달 일정이 없습니다</div>';
-}
-function dayClick(ds, ev){
-  if(role!=='admin') return;
-  evOpen(null, ds);
-}
-function evOpen(id, ds){
-  evEditId = id;
-  const e = id ? S.schedule[id] : null;
-  document.getElementById('evModalTitle').textContent = id?'일정 수정':'일정 추가';
-  document.getElementById('evTitle').value = e?e.title:'';
-  document.getElementById('evDate').value = e?e.date:(ds||'');
-  document.getElementById('evEnd').value = e?(e.endDate||''):'';
-  document.getElementById('evMemo').value = e?(e.memo||''):'';
-  pickCat(e?e.category:'church');
-  document.getElementById('evDelBtn').style.display = (id&&role==='admin')?'inline-block':'none';
-  document.getElementById('evModal').classList.add('open');
-}
-function evSave(){
-  const title = document.getElementById('evTitle').value.trim();
-  const date = document.getElementById('evDate').value;
-  if(!title||!date){ toast('일정명과 날짜를 입력하세요'); return; }
-  const id = evEditId || uid();
-  S.schedule[id] = {title, date, endDate:document.getElementById('evEnd').value||null,
-    category:evPickedCat, memo:document.getElementById('evMemo').value.trim()};
-  closeModal('evModal'); renderCal(); markDirty();
-}
-function evDelete(){
-  if(!confirm('이 일정을 삭제할까요?')) return;
-  delete S.schedule[evEditId];
-  closeModal('evModal'); renderCal(); markDirty();
-}
-
-// ═══ 2. 지표현황 (1~7월 확정 + 8월~ 자동 누적) ═══
-const M_REGIONS = ['대전','천안','청주','서산','공주','아산','세종','논산'];
-const M_PREV = {'대전':16937,'천안':3506,'청주':6475,'서산':923,'공주':745,'아산':943,'세종':693,'논산':413};
-const M_CUR  = {'대전':15148,'천안':3071,'청주':5924,'서산':785,'공주':639,'아산':776,'세종':561,'논산':359};
-// [당월등록,누적등록,종강당월등록,종강누적등록,당월종강,누적종강,당월입교,누적입교,출석률] — 1~7월 확정
-const M_SEED = {"6":{"대전":[127,1633,124,1600,130,566,33,480,96.5],"천안":[15,287,27,388,46,143,33,102,96.9],"청주":[35,384,57,555,46,243,26,248,96.0],"서산":[0,74,12,149,7,68,4,30,94.6],"공주":[10,46,0,227,6,52,10,46,97.2],"아산":[5,71,0,243,3,78,0,32,95.9],"세종":[8,52,17,92,6,18,2,20,96.4],"논산":[0,33,13,69,0,30,5,33,96.2]}};
-const M_FIXED = 6;  // 인덱스 6(7월)까지 확정
-const M2_RATES = [
-  {k:'regRate', name:'센터 누적등록률', color:'#378ADD', f:d=>pct(d.reg_cum,d.cur_total)},
-  {k:'finRate', name:'센터 누적종강률', color:'#1D9E75', f:d=>pct(d.fin_cum,d.fin_reg_cum)},
-  {k:'enrRate', name:'입교율',         color:'#BA7517', f:d=>pct(d.enroll_cum,d.prev_total)},
-  {k:'attRate', name:'출석률',         color:'#7F77DD', f:d=>d.attend||0},
-];
-let m2Month = Math.min(new Date().getMonth(), 11);   // 0=1월
-
-function m2Entry(m,r){
-  const e = ((S.metrics.entries||{})[m]||{})[r]||{};
-  return {reg:+e.reg||0, freg:+e.freg||0, fin:+e.fin||0, enr:+e.enr||0, att:+e.att||0, cur:e.cur!=null?+e.cur:null};
-}
-const M2_FKEYS = ['reg','regc','freg','fregc','fin','finc','enr','enrc','att'];
-function m2Data(m, r){
-  const d = {prev_total:M_PREV[r], cur_total:M_CUR[r], reg_total:0,reg_cum:0,fin_reg_total:0,fin_reg_cum:0,fin_total:0,fin_cum:0,enroll_total:0,enroll_cum:0,attend:0};
-  if(m<=M_FIXED){
-    const raw = ((M_SEED[m]||{})[r] || [0,0,0,0,0,0,0,0,0]).slice();
-    const o = ((S.metrics.fixed||{})[m]||{})[r]||{};   // 관리자 수정값 반영
-    M2_FKEYS.forEach((k,i)=>{ if(o[k]!=null) raw[i]=+o[k]; });
-    d.reg_total=raw[0];d.reg_cum=raw[1];d.fin_reg_total=raw[2];d.fin_reg_cum=raw[3];
-    d.fin_total=raw[4];d.fin_cum=raw[5];d.enroll_total=raw[6];d.enroll_cum=raw[7];d.attend=raw[8];
-    if(o.cur!=null) d.cur_total=+o.cur;
-    return d;
-  }
-  // 8월~: (수정 반영된) 7월 누적을 기준점으로 입력값 자동 합산
-  const b = m2Data(M_FIXED, r);
-  d.reg_cum=b.reg_cum; d.fin_reg_cum=b.fin_reg_cum; d.fin_cum=b.fin_cum; d.enroll_cum=b.enroll_cum;
-  d.cur_total=b.cur_total;
-  for(let i=M_FIXED+1;i<=m;i++){
-    const e = m2Entry(i,r);
-    d.reg_cum+=e.reg; d.fin_reg_cum+=e.freg; d.fin_cum+=e.fin; d.enroll_cum+=e.enr;
-    if(e.cur!=null) d.cur_total=e.cur;
-    if(i===m){ d.reg_total=e.reg; d.fin_reg_total=e.freg; d.fin_total=e.fin; d.enroll_total=e.enr; d.attend=e.att; }
-  }
-  return d;
-}
-function m2SetF(m,r,k,v){   // 1~7월 확정값 직접 수정
-  if(!S.metrics.fixed) S.metrics.fixed={};
-  if(!S.metrics.fixed[m]) S.metrics.fixed[m]={};
-  if(!S.metrics.fixed[m][r]) S.metrics.fixed[m][r]={};
-  S.metrics.fixed[m][r][k] = v===''?null:+v;
-  renderMetrics(); markDirty();
-}
-function m2Set(m,r,k,v){
-  if(!S.metrics.entries) S.metrics.entries={};
-  if(!S.metrics.entries[m]) S.metrics.entries[m]={};
-  if(!S.metrics.entries[m][r]) S.metrics.entries[m][r]={};
-  S.metrics.entries[m][r][k] = v===''?null:+v;
-  renderMetrics(); markDirty();
-}
-function m2Rank(m){
-  const rows = M_REGIONS.map(r=>{ const d=m2Data(m,r); const o={region:r,d};
-    M2_RATES.forEach(rt=>o[rt.k]=rt.f(d)); return o; });
-  const ranks = {};
-  M2_RATES.forEach(rt=>{
-    const sorted = rows.filter(x=>rt.k!=='attRate'||x[rt.k]>0).slice().sort((a,b)=>b[rt.k]-a[rt.k]);
-    ranks[rt.k] = {}; sorted.forEach((x,i)=>ranks[rt.k][x.region]=i+1);
-  });
-  return {rows, ranks};
-}
-function renderMetrics(){
-  // 월 탭
-  document.getElementById('m2Tabs').innerHTML = Array.from({length:12},(_,i)=>
-    `<button class="btn-sub" style="${i===m2Month?'background:var(--navy);color:#fff;border-color:var(--navy)':''}${i<=M_FIXED?';font-weight:800':''}"
-      onclick="m2Month=${i};renderMetrics()">${i+1}월${i<=M_FIXED?' ✓':''}</button>`).join('');
-
-  const {rows, ranks} = m2Rank(m2Month);
-
-  // ⭐ 세종 카드 (당월 기준 누적 순위)
-  const sj = rows.find(x=>x.region==='세종');
-  document.getElementById('m2SejCard').innerHTML = `<div class="my-card">
-    <div class="head"><h3>⭐ 세종 지표 <small style="color:var(--sub);font-weight:600">(${m2Month+1}월 기준 · 8개 지역 중 누적 순위)</small></h3></div>
-    <div class="stat-grid" style="margin-bottom:0">
-      ${M2_RATES.map(rt=>{
-        const rk = ranks[rt.k]['세종'];
-        return `<div class="stat" style="border-top-color:${rt.color}">
-          <div class="lbl">${rt.name} ${rk?`<span class="chip ${rk<=3?'gold':''}" style="float:right;padding:2px 9px;font-size:11px;background:${rk<=3?'var(--gold)':'var(--navy)'};color:${rk<=3?'#3A2E00':'#fff'};border-radius:99px;font-weight:800">${rk}위/8</span>`:''}</div>
-          <div class="val" style="color:${rt.color}">${f1(sj[rt.k])}<small>%</small></div>
-          <div class="lbl" style="margin-top:3px">${rt.k==='regRate'?`당월 +${sj.d.reg_total} · 누적 ${sj.d.reg_cum}`:rt.k==='finRate'?`당월 +${sj.d.fin_total} · 누적 ${sj.d.fin_cum}`:rt.k==='enrRate'?`당월 +${sj.d.enroll_total} · 누적 ${sj.d.enroll_cum}`:`전도재적 ${sj.d.cur_total.toLocaleString()}명`}</div>
-        </div>`;}).join('')}
-    </div>
-  </div>`;
-
-  // 전체 합산 KPI
-  const T = rows.reduce((a,x)=>({prev:a.prev+x.d.prev_total,cur:a.cur+x.d.cur_total,reg:a.reg+x.d.reg_cum,freg:a.freg+x.d.fin_reg_cum,fin:a.fin+x.d.fin_cum,enr:a.enr+x.d.enroll_cum}),{prev:0,cur:0,reg:0,freg:0,fin:0,enr:0});
-  const attAvg = (()=>{const v=rows.filter(x=>x.attRate>0);return v.length?v.reduce((s,x)=>s+x.attRate,0)/v.length:0;})();
-  document.getElementById('metricStats').innerHTML = `
-    <div class="stat" style="border-top-color:#378ADD"><div class="lbl">① 센터 누적등록률<br><small style="font-weight:400">누적등록÷전도재적</small></div><div class="val">${f1(pct(T.reg,T.cur))}<small>% · ${T.reg.toLocaleString()}명</small></div></div>
-    <div class="stat" style="border-top-color:#1D9E75"><div class="lbl">② 센터 누적종강률<br><small style="font-weight:400">누적종강÷종강누적등록</small></div><div class="val">${f1(pct(T.fin,T.freg))}<small>% · ${T.fin.toLocaleString()}명</small></div></div>
-    <div class="stat" style="border-top-color:#BA7517"><div class="lbl">③ 입교율<br><small style="font-weight:400">누적입교÷전년말재적</small></div><div class="val">${f1(pct(T.enr,T.prev))}<small>% · ${T.enr.toLocaleString()}명</small></div></div>
-    <div class="stat" style="border-top-color:#7F77DD"><div class="lbl">④ 평균 출석률</div><div class="val">${f1(attAvg)}<small>%</small></div></div>`;
-
-  // 상세 표
-  const isFix = m2Month<=M_FIXED;
-  const canEdit = role==='admin';
-  const gray = 'background:#F4F6FA;color:#556;font-weight:600';
-  document.querySelector('#m2Tbl tbody').innerHTML = rows.map(x=>{
-    const d=x.d, r=x.region, e=m2Entry(m2Month,r);
-    // 확정월: 모든 값 직접수정(m2SetF) / 8월~: 당월만 입력(m2Set), 누적 자동
-    const inF=(k,val,step)=>canEdit
-      ? `<input type="number" min="0" step="${step||1}" value="${val}" onchange="m2SetF(${m2Month},'${r}','${k}',this.value)">`
-      : (step?f1(val):(+val||0).toLocaleString());
-    const inM=(k,val,step)=>canEdit
-      ? `<input type="number" min="0" step="${step||1}" value="${val||''}" placeholder="0" onchange="m2Set(${m2Month},'${r}','${k}',this.value)">`
-      : (step?f1(val||0):(+val||0).toLocaleString());
-    return `<tr ${r==='세종'?'style="background:#FFFBEF"':''}>
-      <td><b>${r==='세종'?'⭐ ':''}${r}</b></td>
-      <td style="${gray}">${d.prev_total.toLocaleString()}</td>
-      <td>${isFix ? inF('cur', d.cur_total) : (canEdit?`<input type="number" min="0" value="${e.cur!=null?e.cur:d.cur_total}" onchange="m2Set(${m2Month},'${r}','cur',this.value)">`:d.cur_total.toLocaleString())}</td>
-      <td>${isFix ? inF('reg', d.reg_total) : inM('reg', e.reg)}</td>
-      <td>${isFix ? inF('regc', d.reg_cum) : `<span style="${gray};display:block;padding:4px 2px;border-radius:6px">${d.reg_cum.toLocaleString()}</span>`}</td>
-      <td class="rate-cell" style="color:#378ADD">${f1(x.regRate)}%</td>
-      <td>${isFix ? inF('fregc', d.fin_reg_cum) : inM('freg', e.freg)}</td>
-      <td>${isFix ? inF('fin', d.fin_total) : inM('fin', e.fin)}</td>
-      <td>${isFix ? inF('finc', d.fin_cum) : `<span style="${gray};display:block;padding:4px 2px;border-radius:6px">${d.fin_cum.toLocaleString()}</span>`}</td>
-      <td class="rate-cell" style="color:#1D9E75">${f1(x.finRate)}%</td>
-      <td>${isFix ? inF('enr', d.enroll_total) : inM('enr', e.enr)}</td>
-      <td>${isFix ? inF('enrc', d.enroll_cum) : `<span style="${gray};display:block;padding:4px 2px;border-radius:6px">${d.enroll_cum.toLocaleString()}</span>`}</td>
-      <td class="rate-cell" style="color:#BA7517">${f1(x.enrRate)}%</td>
-      <td>${isFix ? inF('att', d.attend, '0.1') : inM('att', e.att, '0.1')}</td>
-    </tr>`;
-  }).join('');
-    drawMetricChart();
-}
-function drawMetricChart(){
-  const {rows} = m2Rank(m2Month);
-  M2_RATES.forEach(rt=>{
-    const valid = rt.k==='attRate' ? rows.filter(x=>x[rt.k]>0) : rows;
-    const sorted = valid.slice().sort((a,b)=>b[rt.k]-a[rt.k]);
-    const avg = sorted.length ? sorted.reduce((s,x)=>s+x[rt.k],0)/sorted.length : 0;
-    const tEl = document.getElementById('m2t_'+rt.k);
-    if(tEl) tEl.innerHTML = `<span class="dot" style="width:9px;height:9px;border-radius:50%;background:${rt.color};display:inline-block"></span> ${rt.name}
-      <span class="tip">평균 <b style="color:${rt.color}">${f1(avg)}%</b> · 세종 ${(sorted.findIndex(x=>x.region==='세종')+1)||'-'}위/${sorted.length}</span>`;
-    mkChart('m2c_'+rt.k,'bar',{labels:sorted.map((x,i)=>`${i+1}위 ${x.region}`),
-      datasets:[
-        {type:'line', label:'평균', data:sorted.map(()=>avg), borderColor:'#98A2B3', borderDash:[6,4], borderWidth:2,
-         pointRadius:0, datalabels:{display:false}},
-        {label:rt.name, data:sorted.map(x=>x[rt.k]),
-         backgroundColor:sorted.map(x=>x.region==='세종'?'#C9A227':rt.color), borderRadius:5,
-         datalabels:{anchor:'end',align:'top',formatter:v=>f1(v)+'%',color:'#333',font:{size:9,weight:'700'}}}
-      ]},
-      {onClick:(e,els,ch)=>{ const el=els.find(x=>x.datasetIndex===1); if(!el) return; metricDrill(sorted[el.index].region); },
-       scales:{y:{beginAtZero:true, ticks:{callback:v=>v+'%'}},x:{ticks:{font:{size:10}}}},
-       plugins:{legend:{display:false}}});
-  });
-}
-function metricDrill(region){
-  const {rows, ranks} = m2Rank(m2Month);
-  const x = rows.find(v=>v.region===region); if(!x) return;
-  const d = x.d;
-  document.getElementById('ddTitle').textContent = `📍 ${region} — ${m2Month+1}월 지표 상세`;
-  document.getElementById('ddBody').innerHTML = `<div class="tbl-wrap"><table>
-    <thead><tr><th>지표</th><th>당월</th><th>누적</th><th>비율</th><th>순위</th></tr></thead>
-    <tbody>
-      <tr><td><b>센터등록</b></td><td>+${d.reg_total}</td><td>${d.reg_cum.toLocaleString()}</td><td class="rate-cell" style="color:#378ADD">${f1(x.regRate)}%</td><td>${ranks.regRate[region]||'-'}위</td></tr>
-      <tr><td><b>센터종강</b></td><td>+${d.fin_total}</td><td>${d.fin_cum.toLocaleString()} / ${d.fin_reg_cum.toLocaleString()}</td><td class="rate-cell" style="color:#1D9E75">${f1(x.finRate)}%</td><td>${ranks.finRate[region]||'-'}위</td></tr>
-      <tr><td><b>입교</b></td><td>+${d.enroll_total}</td><td>${d.enroll_cum.toLocaleString()}</td><td class="rate-cell" style="color:#BA7517">${f1(x.enrRate)}%</td><td>${ranks.enrRate[region]||'-'}위</td></tr>
-      <tr><td><b>출석률</b></td><td colspan="2">전도재적 ${d.cur_total.toLocaleString()}명 · 전년말 ${d.prev_total.toLocaleString()}명</td><td class="rate-cell" style="color:#7F77DD">${f1(x.attRate)}%</td><td>${ranks.attRate[region]||'-'}위</td></tr>
-    </tbody></table></div>`;
-  document.getElementById('ddModal').classList.add('open');
-}
-
-// ═══ 3. 예배출석 ═══
-const DEPT_NAMES = {unspecified:'미분류',dept_child:'유년회',dept_student:'학생회',dept_youth:'청년회',dept_women:'부녀회',dept_men:'장년회',dept_advisory:'자문회',dept_pastor:'교역자',dept_elder:'장로회'};
-const TRIBE_ORDER = ["요한","베드로","부산야고보","안드레","다대오","빌립","시몬","바돌로매","마태","맛디아","서울야고보","도마"];
-const MY_CHURCH = "세종";   // 메인에 강조할 교회
-const MY_TRIBE  = "맛디아"; // 소속 지파
-
-async function wImport(inp){
-  const file = inp.files[0]; inp.value='';
-  if(!file) return;
-  const text = await file.text();
-  const m = text.match(/dataPayload\s*=\s*"([^"]+)"/);
-  if(!m){ toast('출석현황 파일 형식이 아닙니다'); return; }
-  let raw;
-  if(/isEncrypted\s*=\s*true/.test(text)){
-    let pw = localStorage.getItem('wFilePw') || '';
-    pw = prompt('출석파일 암호를 입력하세요', pw);
-    if(pw==null) return;
+  document.getElementById('itemDate').value = new Date().toISOString().slice(0,10);
+  document.getElementById('iconPickRoom').innerHTML = ICONS.map(ic=>`<button type="button" onclick="document.getElementById('roomIcon').value='${ic}'">${ic}</button>`).join('');
+  const badge = document.getElementById('syncBadge');
+  if(firebaseConfig.apiKey && firebaseConfig.databaseURL){
     try{
-      const bytes = CryptoJS.AES.decrypt(m[1], pw);
-      const str = bytes.toString(CryptoJS.enc.Utf8);
-      if(!str) throw 0;
-      raw = JSON.parse(str);
-      localStorage.setItem('wFilePw', pw);
-    }catch(e){ toast('암호가 일치하지 않습니다'); return; }
+      firebase.initializeApp(firebaseConfig);
+      db = firebase.database();
+      useFirebase = true;
+      badge.textContent = "🟢 실시간 동기화";
+      badge.className = "on";
+      db.ref(DB_PATH).on('value', snap=>{
+        DATA = Object.assign({members:{},groups:{},rooms:{},settings:{}}, snap.val()||{});
+        renderAll();
+      });
+    }catch(e){ localMode(); }
+  } else { localMode(); }
+  const p = new URLSearchParams(location.search);
+  currentRoomId = p.get('room') || null;
+  currentDocId = p.get('doc') || null;
+}
+function localMode(){
+  const badge = document.getElementById('syncBadge');
+  badge.textContent = "⚪ 로컬 모드 (기기 저장)";
+  badge.className = "off";
+  const saved = localStorage.getItem(DB_PATH);
+  if(saved) DATA = JSON.parse(saved);
+  renderAll();
+}
+function save(){
+  if(useFirebase){ db.ref(DB_PATH).set(DATA); }
+  else { localStorage.setItem(DB_PATH, JSON.stringify(DATA)); renderAll(); }
+}
+
+/* ───── 암호 / 권한 ───── */
+let isAdmin = false;
+function checkPw(){
+  const v = document.getElementById('pwInput').value;
+  if(v === adminPw() || v === viewerPw()){
+    isAdmin = (v === adminPw());
+    applyMode();
+    document.getElementById('lockScreen').style.display='none';
+    if(isAdmin){ migrateMembers(); migrateRoomsFromLegacyDocs(); }
+    handleDeepLink();
   } else {
-    try{ raw = JSON.parse(m[1]); }catch(e){ toast('데이터를 읽지 못했습니다'); return; }
+    document.getElementById('pwErr').style.display='block';
   }
-  const byDate = {};
-  raw.forEach(r=>{
-    const d = r.dateId; if(!d) return;
-    if(!byDate[d]) byDate[d] = {};
-    const key = r.tribe+'|'+r.churchName+'|'+r.departmentId;
-    if(!byDate[d][key]) byDate[d][key] = {tribe:r.tribe||'', church:r.churchName||'', dept:r.departmentId||'unspecified', el:0,pr:0,on:0,ol:0,su:0,lt:0};
-    const g = byDate[d][key];
-    g.el+=r.attEligible||0; g.pr+=r.attPresent||0; g.on+=r.attOnsite||0;
-    g.ol+=r.attOnline||0; g.su+=r.attSubstitute||0; g.lt+=r.attLongterm||0;
-  });
-  const weeks = Object.keys(byDate).sort();
-  weeks.forEach(d=>{ S.worship[d] = {rows: Object.values(byDate[d])}; });
-  renderWorship(weeks[weeks.length-1]);
-  markDirty();
-  toast('✅ ' + weeks.join(', ') + ' 출석 데이터 반영 완료');
 }
-
-// 원본 파일과 동일한 공식: 실질출석률 = (현장 + (온라인+대예)/2 − 장기결석) ÷ 재적
-const wRate = g => ({ tr:pct(g.pr,g.el), or:pct(g.on,g.el), sr: g.el>0 ? ((g.on+(g.ol+g.su)/2 - g.lt)/g.el*100) : 0 });
-const wWeeks = () => Object.keys(S.worship||{}).filter(d=>(S.worship[d].rows||[]).length).sort();
-function wRowsFor(week){
-  const rows = ((S.worship[week]||{}).rows)||[];
-  const tf = document.getElementById('wTribeSel').value;
-  return tf ? rows.filter(r=>r.tribe===tf) : rows;
-}
-
-function renderWorship(selWeek){
-  const weeks = wWeeks();
-  const sel = document.getElementById('wWeekSel');
-  const keep = selWeek || sel.value || weeks[weeks.length-1] || '';
-  sel.innerHTML = weeks.length ? weeks.slice().reverse().map(w=>
-    `<option value="${w}" ${w===keep?'selected':''}>${w} (주일)</option>`).join('') : '<option value="">데이터 없음 — 파일을 업로드하세요</option>';
-  const ts = document.getElementById('wTribeSel');
-  const curT = ts.value;
-  ts.innerHTML = '<option value="">전체 지파</option>' + TRIBE_ORDER.map(t=>`<option ${t===curT?'selected':''}>${t}</option>`).join('');
-
-  const rows = wRowsFor(sel.value);
-  const sum = rows.reduce((a,r)=>({el:a.el+(+r.el||0),pr:a.pr+(+r.pr||0),on:a.on+(+r.on||0),ol:a.ol+(+r.ol||0),su:a.su+(+r.su||0),lt:a.lt+(+r.lt||0)}),{el:0,pr:0,on:0,ol:0,su:0,lt:0});
-  const R = wRate(sum);
-  document.getElementById('wStats').innerHTML = `
-    <div class="stat"><div class="lbl">재적</div><div class="val">${sum.el.toLocaleString()}<small>명</small></div></div>
-    <div class="stat" style="border-top-color:#1976D2"><div class="lbl">현장출석</div><div class="val">${sum.on.toLocaleString()}<small>명 · ${f1(R.or)}%</small></div></div>
-    <div class="stat" style="border-top-color:#0FA57D"><div class="lbl">전체출석</div><div class="val">${sum.pr.toLocaleString()}<small>명 · ${f1(R.tr)}%</small></div></div>
-    <div class="stat" style="border-top-color:#8B5CF6"><div class="lbl">실질출석률</div><div class="val">${f1(R.sr)}<small>%</small></div></div>
-    <div class="stat" style="border-top-color:#94A3B8"><div class="lbl">온라인 / 대예</div><div class="val">${sum.ol.toLocaleString()}<small> / ${sum.su.toLocaleString()}명</small></div></div>`;
-  renderMyCard(sel.value); renderWRank(); drawWTrend();
-}
-
-document.getElementById('wLevelSeg').addEventListener('click', e=>{
-  const b = e.target.closest('button'); if(!b) return;
-  wLevel = b.dataset.lv;
-  document.querySelectorAll('#wLevelSeg button').forEach(x=>x.classList.toggle('active',x===b));
-  renderWRank();
-});
-
-function wGroup(level, rows){
-  const g = {};
-  rows.forEach(r=>{
-    const key = level==='tribe' ? (r.tribe||'미지정')
-              : level==='church' ? (r.church||'미지정')
-              : (DEPT_NAMES[r.dept]||r.dept||'미분류');
-    if(!g[key]) g[key]={name:key,el:0,pr:0,on:0,ol:0,su:0,lt:0,rows:[]};
-    const x=g[key];
-    x.el+=(+r.el||0);x.pr+=(+r.pr||0);x.on+=(+r.on||0);x.ol+=(+r.ol||0);x.su+=(+r.su||0);x.lt+=(+r.lt||0);
-    x.rows.push(r);
-  });
-  return Object.values(g).map(x=>Object.assign(x, wRate(x))).sort((a,b)=>b.sr-a.sr);
-}
-
-function renderWRank(){
-  const list = wGroup(wLevel, wRowsFor(document.getElementById('wWeekSel').value));
-  const medals=['🥇','🥈','🥉'];
-  document.querySelector('#wRankTbl tbody').innerHTML = list.length ? list.map((g,i)=>`
-    <tr class="${i===0?'rank-1':''}" style="cursor:pointer" onclick="wDrill(${i})">
-      <td class="medal">${medals[i]||i+1}</td><td><b>${esc(g.name)}</b></td>
-      <td>${g.el.toLocaleString()}</td><td style="color:#1976D2;font-weight:700">${g.on.toLocaleString()}</td>
-      <td>${g.ol.toLocaleString()}</td><td>${g.su.toLocaleString()}</td>
-      <td style="color:#0FA57D;font-weight:700">${g.pr.toLocaleString()}</td>
-      <td class="rate-cell">${f1(g.or)}%</td><td class="rate-cell" style="color:#0FA57D">${f1(g.tr)}%</td>
-      <td class="rate-cell" style="color:#8B5CF6"><b>${f1(g.sr)}%</b></td>
-    </tr>`).join('') : `<tr><td colspan="10" class="empty">데이터 없음 — 상단에서 출석파일을 업로드하세요</td></tr>`;
-  window._wRankList = list;
-
-  const chartList = list.length>24 ? list.slice(0,20) : list;
-  mkChart('wChart','bar',{labels:chartList.map(g=>g.name),
-    datasets:[
-      {label:'현장출석률', data:chartList.map(g=>g.or), backgroundColor:'#1976D2', borderRadius:4},
-      {label:'전체출석률', data:chartList.map(g=>g.tr), backgroundColor:'#0FA57D', borderRadius:4},
-      {label:'실질출석률', data:chartList.map(g=>g.sr), backgroundColor:'#8B5CF6', borderRadius:4},
-    ]},
-    {onClick:(e,els)=>{ if(!els.length) return; wDrill(els[0].index); },
-     scales:{y:{beginAtZero:true,max:110,ticks:{callback:v=>v+'%'}},x:{ticks:{font:{size:10}}}},
-     plugins:{datalabels:{anchor:'end',align:'top',rotation:chartList.length>8?-90:0,formatter:v=>v>0?f1(v):'',color:'#333',font:{size:9,weight:'700'}},
-       title:{display:list.length>24, text:'상위 20개만 그래프에 표시 (전체는 위 표 참고)'}}});
-}
-
-function wDrill(i){
-  const g = (window._wRankList||[])[i]; if(!g) return;
-  const sub = wLevel==='tribe' ? 'church' : wLevel==='church' ? 'dept' : 'tribe';
-  wShowDrill(g, sub);
-}
-function wMyDrill(i){
-  const g = (window._wTribeList||[])[i]; if(!g) return;
-  wShowDrill(g, 'dept');
-}
-function wShowDrill(g, sub){
-  const subName = sub==='church'?'교회별':sub==='dept'?'부서별':'지파별';
-  const list = wGroup(sub, g.rows);
-  document.getElementById('ddTitle').textContent = `🙏 ${g.name} — ${subName} 상세 (${document.getElementById('wWeekSel').value})`;
-  document.getElementById('ddBody').innerHTML = `<div class="tbl-wrap"><table>
-    <thead><tr><th>순위</th><th>구분</th><th>재적</th><th>현장</th><th>온라인</th><th>대예</th><th>전체출석</th><th>현장률</th><th>전체률</th><th>실질률</th></tr></thead>
-    <tbody>${list.map((x,ri)=>`<tr class="${ri===0?'rank-1':''}"><td class="medal">${['🥇','🥈','🥉'][ri]||ri+1}</td><td><b>${esc(x.name)}</b></td><td>${x.el.toLocaleString()}</td>
-      <td>${x.on.toLocaleString()}</td><td>${x.ol.toLocaleString()}</td><td>${x.su.toLocaleString()}</td><td>${x.pr.toLocaleString()}</td>
-      <td class="rate-cell">${f1(x.or)}%</td><td class="rate-cell" style="color:#0FA57D">${f1(x.tr)}%</td>
-      <td class="rate-cell" style="color:#8B5CF6"><b>${f1(x.sr)}%</b></td></tr>`).join('')}
-    <tr style="background:#F0F3F8;font-weight:800"><td colspan="2">합계</td><td>${g.el.toLocaleString()}</td><td>${g.on.toLocaleString()}</td><td>${g.ol.toLocaleString()}</td><td>${g.su.toLocaleString()}</td><td>${g.pr.toLocaleString()}</td>
-      <td class="rate-cell">${f1(g.or)}%</td><td class="rate-cell" style="color:#0FA57D">${f1(g.tr)}%</td><td class="rate-cell" style="color:#8B5CF6">${f1(g.sr)}%</td></tr>
-    </tbody></table></div>`;
-  document.getElementById('ddModal').classList.add('open');
-}
-
-function renderMyCard(week){
-  const box = document.getElementById('wMyCard');
-  const rows = ((S.worship[week]||{}).rows)||[];   // 전체 데이터 기준(지파 필터 무시)
-  if(!rows.length){ box.innerHTML=''; return; }
-  const all = wGroup('church', rows);
-  const gi = all.findIndex(x=>x.name===MY_CHURCH);
-  if(gi<0){ box.innerHTML=''; return; }
-  const me = all[gi];
-  const tribeList = all.filter(x=>((x.rows[0]||{}).tribe)===MY_TRIBE);
-  const ti = tribeList.findIndex(x=>x.name===MY_CHURCH);
-  window._wTribeList = tribeList;
-  box.innerHTML = `<div class="my-card">
-    <div class="head">
-      <h3>⭐ ${MY_CHURCH}교회 <small style="color:var(--sub);font-weight:600">(${MY_TRIBE}지파)</small></h3>
-      <div class="rankchips">
-        <span class="chip gold">전체 ${gi+1}위 / ${all.length}개 교회</span>
-        <span class="chip">${MY_TRIBE}지파 내 ${ti+1}위 / ${tribeList.length}개</span>
-      </div>
-    </div>
-    <div class="nums">
-      <span>실질출석률 <b style="color:#8B5CF6;font-size:22px">${f1(me.sr)}%</b></span>
-      <span>재적 <b>${me.el.toLocaleString()}</b>명</span>
-      <span>현장 <b style="color:#1976D2">${me.on.toLocaleString()}</b>명 (${f1(me.or)}%)</span>
-      <span>전체출석 <b style="color:#0FA57D">${me.pr.toLocaleString()}</b>명 (${f1(me.tr)}%)</span>
-    </div>
-    <div class="chart-box sm" style="height:220px;margin-top:12px"><canvas id="wMyChart"></canvas></div>
-  </div>`;
-  mkChart('wMyChart','bar',{labels:tribeList.map((x,i)=>`${i+1}위 ${x.name}`),
-    datasets:[{label:'실질출석률', data:tribeList.map(x=>x.sr),
-      backgroundColor:tribeList.map(x=>x.name===MY_CHURCH?'#C9A227':'#3E7CB1'), borderRadius:5}]},
-    {onClick:(e,els)=>{ if(!els.length) return; wMyDrill(els[0].index); },
-     scales:{y:{beginAtZero:true,max:100,ticks:{callback:v=>v+'%'}}},
-     plugins:{legend:{display:false},
-       title:{display:true,text:MY_TRIBE+'지파 교회별 실질출석률 (막대 클릭 → 부서별 상세)'},
-       datalabels:{anchor:'end',align:'top',formatter:v=>f1(v)+'%',color:'#333',font:{size:10,weight:'700'}}}});
-}
-
-function drawWTrend(){
-  const weeks = wWeeks().slice(-12);
-  const tf = document.getElementById('wTribeSel').value;
-  const agg = weeks.map(d=>{
-    let rows = (S.worship[d].rows||[]);
-    if(tf) rows = rows.filter(r=>r.tribe===tf);
-    const s = rows.reduce((a,r)=>({el:a.el+(+r.el||0),pr:a.pr+(+r.pr||0),on:a.on+(+r.on||0),ol:a.ol+(+r.ol||0),su:a.su+(+r.su||0),lt:a.lt+(+r.lt||0)}),{el:0,pr:0,on:0,ol:0,su:0,lt:0});
-    return Object.assign({d}, wRate(s));
-  });
-  mkChart('wTrend','line',{labels:agg.map(a=>a.d.slice(5).replace('-','/')),
-    datasets:[
-      {label:'현장출석률', data:agg.map(a=>a.or), borderColor:'#1976D2', backgroundColor:'#1976D2', tension:.3},
-      {label:'전체출석률', data:agg.map(a=>a.tr), borderColor:'#0FA57D', backgroundColor:'#0FA57D', tension:.3},
-      {label:'실질출석률', data:agg.map(a=>a.sr), borderColor:'#8B5CF6', backgroundColor:'#8B5CF6', tension:.3},
-    ]},
-    {scales:{y:{beginAtZero:true,max:100,ticks:{callback:v=>v+'%'}}},
-     plugins:{datalabels:{align:'top',formatter:v=>f1(v),font:{size:10}}}});
-}
-
-// ═══ 4. 선교센터 (실시간 연동) ═══
-const CENTER_MONTHS = ["7월","8월","9월","10월","11월","12월","1월","2월","3월","4월","5월","6월"];
-const CENTER_CHURCHES = ["대전","서천","금산","보령","계룡","천안","청주","서산","공주","아산","세종","논산"];
-let centerRows = [];
-
-function initCenterFeed(){
-  const el = document.getElementById('cSync');
-  if(!db){ el.innerHTML = '⚠️ Firebase 연결 후 실시간 표시됩니다'; return; }
-  db.ref('dashboards/sejong-center').on('value', snap=>{
-    const v = snap.val();
-    centerRows = (v && v.rows) ? Object.values(v.rows) : [];
-    el.innerHTML = '☁️ <b>선교센터 대시보드와 실시간 연동됨</b> · 마지막 반영 ' + timeNow();
-    renderCenter();
-  }, err=>{ el.innerHTML = '⚠️ 연동 실패 — Firebase 규칙 확인 필요'; });
-}
-
-const cTotal = r => (+r.register||0) + (+r.move||0);
-const cRate  = r => pct(+r.currAtt||0, cTotal(r));
-
-function cFiltered(){
-  const m = document.getElementById('cMonthSel').value;
-  const c = document.getElementById('cChurchSel').value;
-  return centerRows.filter(r => (!m || r.month===m) && (!c || r.church===c));
-}
-
-function renderCenter(){
-  // 필터 옵션 갱신
-  const ms = document.getElementById('cMonthSel'), cs = document.getElementById('cChurchSel');
-  const km = ms.value, kc = cs.value;
-  const months = CENTER_MONTHS.filter(m=>centerRows.some(r=>r.month===m));
-  const churches = CENTER_CHURCHES.filter(c=>centerRows.some(r=>r.church===c));
-  ms.innerHTML = '<option value="">전체 월</option>' + months.map(m=>`<option ${m===km?'selected':''}>${m}</option>`).join('');
-  cs.innerHTML = '<option value="">전체 교회</option>' + churches.map(c=>`<option ${c===kc?'selected':''}>${c}</option>`).join('');
-
-  const rows = cFiltered();
-  const sum = rows.reduce((a,r)=>({
-    apply:a.apply+(+r.apply||0), itv:a.itv+(+r.interview||0), reg:a.reg+(+r.register||0),
-    tot:a.tot+cTotal(r), prev:a.prev+(+r.prevAtt||0), curr:a.curr+(+r.currAtt||0)
-  }),{apply:0,itv:0,reg:0,tot:0,prev:0,curr:0});
-  document.getElementById('cStats').innerHTML = `
-    <div class="stat"><div class="lbl">기수 수</div><div class="val">${rows.length}<small>개</small></div></div>
-    <div class="stat" style="border-top-color:#1976D2"><div class="lbl">센터등록</div><div class="val">${sum.reg.toLocaleString()}<small>명 · ${f1(pct(sum.reg,sum.itv))}%</small></div></div>
-    <div class="stat" style="border-top-color:#689F38"><div class="lbl">총원</div><div class="val">${sum.tot.toLocaleString()}<small>명</small></div></div>
-    <div class="stat" style="border-top-color:#C9A227"><div class="lbl">금주출석</div><div class="val">${sum.curr.toLocaleString()}<small>명 · ${f1(pct(sum.curr,sum.tot))}%</small></div></div>
-    <div class="stat" style="border-top-color:${sum.curr>=sum.prev?'#0FA57D':'#D32F2F'}"><div class="lbl">전주대비</div><div class="val">${sum.curr>=sum.prev?'▲':'▼'} ${Math.abs(sum.curr-sum.prev).toLocaleString()}<small>명</small></div></div>`;
-
-  // 교회별 차트
-  const g = {};
-  rows.forEach(r=>{ const k=r.church||'미지정'; if(!g[k])g[k]={tot:0,curr:0,rows:[]};
-    g[k].tot+=cTotal(r); g[k].curr+=(+r.currAtt||0); g[k].rows.push(r); });
-  const list = Object.entries(g).map(([name,v])=>({name,...v,rate:pct(v.curr,v.tot)})).sort((a,b)=>b.rate-a.rate);
-  window._cRankList = list;
-  mkChart('cChart','bar',{labels:list.map(x=>x.name),
-    datasets:[{label:'출석률', data:list.map(x=>x.rate),
-      backgroundColor:list.map(x=>x.rate<20?'#D32F2F':x.rate<30?'#F59E0B':'#3E7CB1'), borderRadius:6}]},
-    {onClick:(e,els)=>{ if(!els.length) return; cDrill(els[0].index); },
-     scales:{y:{beginAtZero:true,max:100,ticks:{callback:v=>v+'%'}}},
-     plugins:{legend:{display:false},datalabels:{anchor:'end',align:'top',formatter:v=>f1(v)+'%',color:'#333',font:{weight:'700',size:10}}}});
-
-  // 상세 표 (읽기 전용)
-  const sorted = rows.slice().sort((a,b)=>
-    (CENTER_MONTHS.indexOf(a.month)-CENTER_MONTHS.indexOf(b.month)) ||
-    (CENTER_CHURCHES.indexOf(a.church)-CENTER_CHURCHES.indexOf(b.church)));
-  document.querySelector('#cTbl tbody').innerHTML = sorted.length ? sorted.map(r=>{
-    const rate = cRate(r), diff = (+r.currAtt||0)-(+r.prevAtt||0);
-    const rc = rate<20?'#D32F2F':rate<30?'#F59E0B':'#1976D2';
-    return `<tr>
-      <td>${esc(r.month)}</td><td><b>${esc(r.church)}</b></td><td>${esc(r.center)}</td><td>${esc(r.gigi)}</td>
-      <td>${(+r.apply||0)}</td><td>${(+r.interview||0)}</td><td>${(+r.register||0)}</td>
-      <td class="rate-cell">${f1(pct(+r.register||0,+r.interview||0))}%</td>
-      <td><b>${cTotal(r)}</b></td><td>${(+r.prevAtt||0)}</td><td><b>${(+r.currAtt||0)}</b></td>
-      <td class="rate-cell" style="color:${rc}">${f1(rate)}%</td>
-      <td style="color:${diff>=0?'#0FA57D':'#D32F2F'};font-weight:700">${diff>=0?'▲':'▼'} ${Math.abs(diff)}</td>
-    </tr>`;
-  }).join('') : `<tr><td colspan="13" class="empty">표시할 데이터가 없습니다 — 선교센터 대시보드에서 입력하면 자동 표시됩니다</td></tr>`;
-}
-function cDrill(i){
-  const g = (window._cRankList||[])[i]; if(!g) return;
-  document.getElementById('ddTitle').textContent = `🏫 ${g.name} — 기수별 상세`;
-  document.getElementById('ddBody').innerHTML = `<div class="tbl-wrap"><table>
-    <thead><tr><th>월</th><th>센터</th><th>기수</th><th>총원</th><th>금주출석</th><th>출석률</th></tr></thead>
-    <tbody>${g.rows.map(r=>`<tr><td>${esc(r.month)}</td><td>${esc(r.center)}</td><td>${esc(r.gigi)}</td>
-      <td>${cTotal(r)}</td><td>${(+r.currAtt||0)}</td>
-      <td class="rate-cell">${f1(cRate(r))}%</td></tr>`).join('')}
-    <tr style="background:#F0F3F8;font-weight:800"><td colspan="3">합계</td><td>${g.tot}</td><td>${g.curr}</td><td class="rate-cell">${f1(g.rate)}%</td></tr>
-    </tbody></table></div>`;
-  document.getElementById('ddModal').classList.add('open');
-}
-
-// ═══ 사진 공통(압축) ═══
-function compress(file, maxW=1100, q=0.72){
-  return new Promise((res,rej)=>{
-    const img = new Image();
-    img.onload = ()=>{
-      const sc = Math.min(1, maxW/img.width);
-      const cv = document.createElement('canvas');
-      cv.width = Math.round(img.width*sc); cv.height = Math.round(img.height*sc);
-      cv.getContext('2d').drawImage(img,0,0,cv.width,cv.height);
-      res(cv.toDataURL('image/jpeg', q));
-    };
-    img.onerror = rej;
-    img.src = URL.createObjectURL(file);
-  });
-}
-function lightbox(src){
-  document.getElementById('lbImg').src = src;
-  document.getElementById('lightbox').classList.add('open');
-}
-
-// ═══ 5. 사명자현황 (명단 관리) ═══
-const R_SEED = [{"c":"dept","g":"총무부","n":"전정구","p":"교회담임"},{"c":"dept","g":"총무부","n":"곽종현","p":"교회총무"},{"c":"dept","g":"행정서무부","n":"최현정","p":"행정서무"},{"c":"dept","g":"행정서무부","n":"송희원","p":"기타 기록보존과장"},{"c":"dept","g":"내무부","n":"정수현","p":"부장"},{"c":"dept","g":"내무부","n":"최지혜","p":"기타 새신자부장"},{"c":"dept","g":"기획부","n":"장윤정","p":"부장"},{"c":"dept","g":"기획부","n":"이예랑","p":"서무"},{"c":"dept","g":"재정부","n":"이윤희","p":"부장"},{"c":"dept","g":"교육부","n":"강현웅","p":"부장"},{"c":"dept","g":"교육부","n":"손지은","p":"서무"},{"c":"dept","g":"신학부","n":"심미혜","p":"부장"},{"c":"dept","g":"신학부","n":"정구만","p":"기타 후원원장"},{"c":"dept","g":"신학부","n":"김지혜","p":"서무"},{"c":"dept","g":"전도부","n":"성정민","p":"부장"},{"c":"dept","g":"전도부","n":"김평유","p":"서무"},{"c":"dept","g":"전도부","n":"김현정","p":"기타 전도부전도교관"},{"c":"dept","g":"전도부","n":"서동숙","p":"기타 전도부전도교관"},{"c":"dept","g":"전도부","n":"이길선","p":"기타 전도부전도교관"},{"c":"dept","g":"전도부","n":"박상미","p":"기타 전도부전도교관"},{"c":"dept","g":"문화부","n":"홍윤아","p":"부장"},{"c":"dept","g":"문화부","n":"김익환","p":"과장 영상제작과장"},{"c":"dept","g":"문화부","n":"천승환","p":"과장 사진과장"},{"c":"dept","g":"문화부","n":"배혜영","p":"과장 디자인과장"},{"c":"dept","g":"문화부","n":"이범식","p":"과장 음향과장"},{"c":"dept","g":"출판부","n":"배현미","p":"부장"},{"c":"dept","g":"정보통신부","n":"박임수","p":"부장"},{"c":"dept","g":"찬양부","n":"안은희","p":"부장"},{"c":"dept","g":"찬양부","n":"이바란","p":"서무"},{"c":"dept","g":"찬양부","n":"강윤아","p":"기타 찬양대장"},{"c":"dept","g":"섭외부","n":"이상훈","p":"부장"},{"c":"dept","g":"국내선교부","n":"조경화","p":"부장"},{"c":"dept","g":"국내선교부","n":"고민경","p":"서무"},{"c":"dept","g":"홍보부","n":"장미경","p":"부장"},{"c":"dept","g":"홍보부","n":"서정인","p":"기타 홍보부 단장"},{"c":"dept","g":"건설부","n":"박진영","p":"부장"},{"c":"dept","g":"체육부","n":"정갑진","p":"부장"},{"c":"dept","g":"사업부","n":"신의경","p":"부장"},{"c":"dept","g":"봉사교통부","n":"유상희","p":"부장"},{"c":"hoe","g":"자문회","n":"박선순","p":"회장"},{"c":"hoe","g":"자문회","n":"육미연","p":"서기"},{"c":"hoe","g":"자문회","n":"이효진","p":"기능과장 자문회 상담심방과장"},{"c":"hoe","g":"장년회","n":"곽종현","p":"회장"},{"c":"hoe","g":"장년회","n":"김승균","p":"임원 지역장"},{"c":"hoe","g":"장년회","n":"박임수","p":"서기"},{"c":"hoe","g":"장년회","n":"박승범","p":"기능과장 장년회전도과장"},{"c":"hoe","g":"장년회","n":"이정철","p":"기능과장 장년회기획과장"},{"c":"hoe","g":"부녀회","n":"김광조","p":"회장"},{"c":"hoe","g":"부녀회","n":"전부경","p":"서기"},{"c":"hoe","g":"부녀회","n":"박선영","p":"지역장"},{"c":"hoe","g":"부녀회","n":"김용순","p":"지역장"},{"c":"hoe","g":"부녀회","n":"신현옥","p":"기능과장 부녀회전도과장"},{"c":"hoe","g":"부녀회","n":"유경숙","p":"기능과장 부녀회전도과-부과장"},{"c":"hoe","g":"부녀회","n":"방혜경","p":"기능과장 부녀회복음방교관"},{"c":"hoe","g":"부녀회","n":"남궁리숙","p":"기능과장 부녀회복음방교관"},{"c":"hoe","g":"부녀회","n":"이금희","p":"기능과장 부녀회봉사교통과장"},{"c":"hoe","g":"부녀회","n":"박은정","p":"기능과장 부녀회상담심방과장"},{"c":"hoe","g":"부녀회","n":"정인영","p":"기능과장 부녀회심방과-부과장"},{"c":"hoe","g":"부녀회","n":"박연옥","p":"기능과장 부녀회심방과-부과장"},{"c":"hoe","g":"부녀회","n":"노은숙","p":"기능과장 부녀회심방과-부과장"},{"c":"hoe","g":"부녀회","n":"박정남","p":"기능과장 부녀회문화과장"},{"c":"hoe","g":"청년회","n":"이상훈","p":"회장"},{"c":"hoe","g":"청년회","n":"신효정","p":"서기"},{"c":"hoe","g":"청년회","n":"이태환","p":"임원 청년총무"},{"c":"hoe","g":"청년회","n":"장주희","p":"임원 지역장"},{"c":"hoe","g":"청년회","n":"전은주","p":"임원 지역장"},{"c":"hoe","g":"청년회","n":"염도원","p":"기능과장 청년회 전도과장"},{"c":"hoe","g":"청년회","n":"이수미","p":"기능과장 청년회 상담심방과장"},{"c":"hoe","g":"학생회","n":"황지혜","p":"부장"},{"c":"hoe","g":"학생회","n":"전남기","p":"교사"},{"c":"hoe","g":"학생회","n":"이미라","p":"서기"},{"c":"hoe","g":"학생회","n":"장영완","p":"교사"},{"c":"hoe","g":"학생회","n":"우서윤","p":"교사"},{"c":"hoe","g":"학생회","n":"김성아","p":"교사"},{"c":"hoe","g":"학생회","n":"황은지","p":"교사"},{"c":"hoe","g":"유년회","n":"민은기","p":"부장"},{"c":"hoe","g":"유년회","n":"이미예","p":"서기"},{"c":"hoe","g":"유년회","n":"김인혜","p":"회계"},{"c":"hoe","g":"유년회","n":"최수진","p":"교사"},{"c":"hoe","g":"유년회","n":"서진숙","p":"교사"},{"c":"hoe","g":"국제부","n":"조경화","p":"부장"},{"c":"hoe","g":"국제부","n":"고민경","p":"서기"},{"c":"hoe","g":"자문회","n":"송화영","p":"구역장"},{"c":"hoe","g":"자문회","n":"강오순","p":"구역장"},{"c":"hoe","g":"자문회","n":"김성숙","p":"구역장"},{"c":"hoe","g":"장년회","n":"서민균","p":"구역장"},{"c":"hoe","g":"장년회","n":"성기웅","p":"구역장"},{"c":"hoe","g":"장년회","n":"김원근","p":"구역장"},{"c":"hoe","g":"부녀회","n":"김선희","p":"구역장"},{"c":"hoe","g":"부녀회","n":"이현주","p":"구역장"},{"c":"hoe","g":"부녀회","n":"이현덕","p":"구역장"},{"c":"hoe","g":"부녀회","n":"김지현c","p":"구역장"},{"c":"hoe","g":"부녀회","n":"전은신","p":"구역장"},{"c":"hoe","g":"부녀회","n":"전현숙","p":"구역장"},{"c":"hoe","g":"부녀회","n":"김윤이","p":"구역장"},{"c":"hoe","g":"부녀회","n":"송다인","p":"구역장"},{"c":"hoe","g":"부녀회","n":"김경애","p":"구역장"},{"c":"hoe","g":"부녀회","n":"이숙경","p":"구역장"},{"c":"hoe","g":"부녀회","n":"강성애","p":"구역장"},{"c":"hoe","g":"부녀회","n":"구금회","p":"구역장"},{"c":"hoe","g":"부녀회","n":"유경희","p":"구역장"},{"c":"hoe","g":"부녀회","n":"박경희","p":"구역장"},{"c":"hoe","g":"부녀회","n":"신선미","p":"구역장"},{"c":"hoe","g":"부녀회","n":"손종희","p":"구역장"},{"c":"hoe","g":"부녀회","n":"김연재","p":"구역장"},{"c":"hoe","g":"부녀회","n":"김민주","p":"구역장"},{"c":"hoe","g":"청년회","n":"박소현","p":"구역장"},{"c":"hoe","g":"청년회","n":"김혜선","p":"구역장"},{"c":"hoe","g":"청년회","n":"이창언","p":"구역장"},{"c":"hoe","g":"청년회","n":"김나연","p":"구역장"},{"c":"hoe","g":"청년회","n":"이기안","p":"구역장"},{"c":"hoe","g":"청년회","n":"이푸른하늘","p":"구역장"},{"c":"hoe","g":"청년회","n":"김기랑","p":"구역장"},{"c":"hoe","g":"청년회","n":"이범식","p":"구역장"},{"c":"center","g":"세종센터","n":"심미혜","p":"주강사"},{"c":"center","g":"세종센터","n":"이상훈","p":"강사후보생"},{"c":"center","g":"세종센터","n":"한미선","p":"전도사"},{"c":"center","g":"세종센터","n":"김수인","p":"전도사"},{"c":"center","g":"세종센터","n":"김지혜","p":"전도사후보생"},{"c":"center","g":"세종센터","n":"손지은","p":"강사후보생"},{"c":"center","g":"보람센터","n":"강현웅","p":"강사"},{"c":"center","g":"보람센터","n":"장미경","p":"강사후보생"},{"c":"center","g":"보람센터","n":"조순영","p":"전도사후보생"},{"c":"center","g":"보람센터","n":"윤군수","p":"전도사후보생"},{"c":"center","g":"보람센터","n":"임지영","p":"전도사"}];
-const R_CATS = {dept:'24부서', hoe:'각 회', center:'선교센터'};
-const R_HOE_ORDER = ['자문회','장년회','부녀회','청년회','학생회','유년회','국제부'];
-const R_DEPT_ORDER = ['총무부','행정서무부','내무부','기획부','재정부','교육부','신학부','해외선교부','전도부','문화부','출판부','정보통신부','찬양부','섭외부','국내선교부','홍보부','법무부','건설부','체육부','사업부','보건후생복지부','봉사교통부'];
-let rView='sum', rEditIdx=null;
-
-function rList(){
-  const l = S.missioners && S.missioners.list;
-  return (Array.isArray(l) && l.length) ? l : R_SEED;
-}
-function rEnsure(){
-  if(!S.missioners || !Array.isArray(S.missioners.list) || !S.missioners.list.length)
-    S.missioners = {list: JSON.parse(JSON.stringify(R_SEED))};
-  return S.missioners.list;
-}
-document.getElementById('rSeg').addEventListener('click', e=>{
-  const b = e.target.closest('button'); if(!b) return;
-  rView = b.dataset.v;
-  document.querySelectorAll('#rSeg button').forEach(x=>x.classList.toggle('active',x===b));
-  renderMiss();
-});
-function rRank(p){
-  p = p||'';
-  if(!p) return 99;
-  if(p.includes('교회담임')||p.includes('담임')) return 0;
-  if(p.includes('교회총무')) return 1;
-  if(p.includes('부구역장')) return 8;      // '구역장' 오인 방지: 먼저 검사
-  if(p.includes('구역장')) return 7;
-  if(p.includes('기능과장')) return 6;
-  if(p.includes('부장')||p.includes('회장')) return 2;
-  if(p.includes('총무')) return 3;
-  if(p.includes('지역장')) return 4;
-  if(p.includes('서무')||p.includes('서기')) return 5;
-  if(p.includes('과장')) return 6;
-  return 9;                                  // 부서원·재정회계·기타 등
-}
-function rGroups(cat){
-  const g = {};
-  rList().forEach((p,i)=>{ if(p.c!==cat) return; if(!g[p.g]) g[p.g]=[]; g[p.g].push({...p,i}); });
-  let keys = Object.keys(g);
-  const ord = (arr,x)=>{ const i=arr.indexOf(x); return i<0?999:i; };
-  if(cat==='hoe') keys.sort((a,b)=>ord(R_HOE_ORDER,a)-ord(R_HOE_ORDER,b) || a.localeCompare(b,'ko'));
-  else if(cat==='dept') keys.sort((a,b)=>ord(R_DEPT_ORDER,a)-ord(R_DEPT_ORDER,b) || a.localeCompare(b,'ko'));
-  else keys.sort((a,b)=>a.localeCompare(b,'ko'));
-  return keys.map(k=>({name:k, members:g[k].slice().sort((a,b)=>rRank(a.p)-rRank(b.p) || (a.p||'').localeCompare(b.p||'','ko') || a.n.localeCompare(b.n,'ko'))}));
-}
-function renderMiss(){
-  const list = rList();
-  const uniq = arr => new Set(arr.map(p=>p.n)).size;
-  document.getElementById('rHint').textContent = `총 ${uniq(list)}명 (겸직 제외) · 직책 수 ${list.length}`;
-  const body = document.getElementById('rBody');
-
-  if(rView==='sum'){
-    const dupCnt = (()=>{ const c={}; list.forEach(p=>c[p.n]=(c[p.n]||0)+1); return Object.values(c).filter(v=>v>1).length; })();
-    body.innerHTML = `
-      <div class="stat-grid">
-        <div class="stat" style="border-top-color:var(--gold)"><div class="lbl">전체 사명자 (중복 제외)</div><div class="val">${uniq(list)}<small>명</small></div></div>
-        ${Object.entries(R_CATS).map(([c,name])=>{
-          const sub = list.filter(p=>p.c===c);
-          return `<div class="stat"><div class="lbl">${name}</div><div class="val">${uniq(sub)}<small>명</small></div></div>`;}).join('')}
-        <div class="stat" style="border-top-color:#8B5CF6"><div class="lbl">겸직 인원</div><div class="val">${dupCnt}<small>명</small></div></div>
-      </div>
-      <div class="mg2" style="grid-template-columns:repeat(auto-fit,minmax(220px,1fr))">
-        ${Object.entries(R_CATS).map(([c,name])=>{
-          const groups = rGroups(c);
-          return `<div class="card" style="margin-bottom:0"><h2>${name} <span class="tip">${uniq(list.filter(p=>p.c===c))}명</span></h2>
-            <table><thead><tr><th style="text-align:left">구분</th><th>인원</th></tr></thead><tbody>
-            ${groups.map(g=>`<tr><td style="text-align:left">${esc(g.name)}</td><td><b>${g.members.length}</b>명</td></tr>`).join('')}
-            <tr style="background:#F0F3F8;font-weight:800"><td style="text-align:left">계</td><td>${list.filter(p=>p.c===c).length}명</td></tr>
-            </tbody></table></div>`;}).join('')}
-      </div>`;
-    return;
-  }
-
-  const groups = rGroups(rView);
-  const canEdit = role==='admin';
-  body.innerHTML = groups.length ? `<div class="mg2" style="grid-template-columns:repeat(auto-fit,minmax(260px,1fr))">` +
-    groups.map(g=>`<div class="card" style="margin-bottom:0">
-      <h2>${esc(g.name)} <span class="chip" style="background:var(--navy);color:#fff;border-radius:99px;padding:2px 10px;font-size:12px;font-weight:800">${g.members.length}명</span>
-        ${canEdit?`<span style="margin-left:auto"><button class="btn-sub" style="padding:3px 9px;font-size:12px" onclick="rAdd('${rView}','${esc(g.name)}')">＋</button></span>`:''}
-      </h2>
-      <div style="display:flex;flex-wrap:wrap;gap:6px">
-        ${g.members.map(m=>`<span onclick="${canEdit?`rEdit(${m.i})`:''}" style="background:#F0F3F8;border:1px solid var(--line);border-radius:8px;padding:5px 10px;font-size:13px;${canEdit?'cursor:pointer':''}">
-          <b>${esc(m.n)}</b>${m.p?` <small style="color:var(--sub)">${esc(m.p)}</small>`:''}</span>`).join('')}
-      </div>
-    </div>`).join('') + `</div>` : '<div class="empty">데이터가 없습니다</div>';
-}
-function rAdd(cat, group){
-  rEditIdx = null;
-  document.getElementById('rModalTitle').textContent = '인원 추가';
-  document.getElementById('rCat').value = cat||rView==='sum'?(cat||'dept'):rView;
-  if(cat) document.getElementById('rCat').value = cat;
-  document.getElementById('rGroup').value = group||'';
-  document.getElementById('rName').value = '';
-  document.getElementById('rPos').value = '';
-  document.getElementById('rDelBtn').style.display = 'none';
-  document.getElementById('rModal').classList.add('open');
-}
-function rEdit(i){
-  rEditIdx = i;
-  const p = rList()[i]; if(!p) return;
-  document.getElementById('rModalTitle').textContent = '인원 수정';
-  document.getElementById('rCat').value = p.c;
-  document.getElementById('rGroup').value = p.g;
-  document.getElementById('rName').value = p.n;
-  document.getElementById('rPos').value = p.p||'';
-  document.getElementById('rDelBtn').style.display = 'inline-block';
-  document.getElementById('rModal').classList.add('open');
-}
-function rSave(){
-  const n = document.getElementById('rName').value.trim();
-  const g = document.getElementById('rGroup').value.trim();
-  if(!n||!g){ toast('소속과 이름을 입력하세요'); return; }
-  const list = rEnsure();
-  const p = {c:document.getElementById('rCat').value, g, n, p:document.getElementById('rPos').value.trim()};
-  if(rEditIdx==null) list.push(p); else list[rEditIdx] = p;
-  closeModal('rModal'); renderMiss(); markDirty();
-}
-function rDelete(){
-  if(!confirm('이 인원을 삭제할까요?')) return;
-  rEnsure().splice(rEditIdx,1);
-  closeModal('rModal'); renderMiss(); markDirty();
-}
-async function rImport(inp){
-  const file = inp.files[0]; inp.value='';
-  if(!file) return;
-  try{
-    const wb = XLSX.read(await file.arrayBuffer());
-    const grab = (name)=>{ const ws=wb.Sheets[name]; if(!ws) return [];
-      const rows = XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
-      const h = rows.findIndex(r=>String(r[0]).trim()==='번호');
-      return h<0?[]:rows.slice(h+1); };
-    const cl = v => String(v==null?'':v).trim();
-    const pj = (a,b)=>{a=cl(a);b=cl(b);return (a&&b&&a!==b)?a+' '+b:(a||b);};
-    const out = [];
-    grab('24부서').forEach(r=>{ if(cl(r[5])) out.push({c:'dept',g:cl(r[2]),n:cl(r[5]),p:pj(r[3],r[4])}); });
-    grab('각 회').forEach(r=>{ if(cl(r[6])) out.push({c:'hoe',g:cl(r[2]),n:cl(r[6]),p:pj(r[4],r[5])}); });
-    grab('구역장').forEach(r=>{ if(cl(r[5])) out.push({c:'hoe',g:cl(r[2]),n:cl(r[5]),p:cl(r[4])||'구역장'}); });
-    grab('선교센터').forEach(r=>{ if(cl(r[5])) out.push({c:'center',g:cl(r[2]),n:cl(r[5]),p:pj(r[3],r[4])}); });
-    if(!out.length){ toast('명단을 찾지 못했습니다 — 시트명(24부서/각 회/구역장/선교센터)을 확인하세요'); return; }
-    S.missioners = {list: out};
-    renderMiss(); markDirty();
-    toast(`✅ ${new Set(out.map(p=>p.n)).size}명(중복제외) 반영 완료`);
-  }catch(e){ toast('엑셀을 읽지 못했습니다: '+e.message); }
-}
-
-// ═══ 6. 활동사진 ═══
-let actPhotos = [];
-function actOpen(id){
-  actEditId = id||null;
-  const a = id ? S.activities[id] : null;
-  document.getElementById('actModalTitle').textContent = id?'활동 수정':'활동 등록';
-  document.getElementById('aName').value = a?a.name:'';
-  document.getElementById('aDT').value = a?(a.dt||''):'';
-  document.getElementById('aPlace').value = a?(a.place||''):'';
-  document.getElementById('aTarget').value = a?(a.target||''):'';
-  document.getElementById('aSize').value = a?(a.size||''):'';
-  document.getElementById('aContent').value = a?(a.content||''):'';
-  actPhotos = a ? [...(a.photos||[])] : [];
-  document.getElementById('aFiles').value = '';
-  actPreview();
-  document.getElementById('actModal').classList.add('open');
-}
-document.getElementById('aFiles').addEventListener('change', async e=>{
-  for(const f of e.target.files){
-    if(actPhotos.length>=3){ toast('사진은 최대 3장까지 가능합니다'); break; }
-    actPhotos.push(await compress(f));
-  }
-  e.target.value=''; actPreview();
-});
-function actPreview(){
-  document.getElementById('aPreview').innerHTML = actPhotos.map((p,i)=>`
-    <div style="position:relative"><img src="${p}" onclick="lightbox(this.src)">
-      <button class="btn-danger" style="position:absolute;top:5px;right:5px;padding:2px 8px" onclick="actPhotos.splice(${i},1);actPreview()">✕</button>
-    </div>`).join('');
-}
-function actSave(){
-  const name = document.getElementById('aName').value.trim();
-  if(!name){ toast('행사명을 입력하세요'); return; }
-  const id = actEditId || uid();
-  S.activities[id] = {
-    name, dt:document.getElementById('aDT').value,
-    place:document.getElementById('aPlace').value.trim(),
-    target:document.getElementById('aTarget').value.trim(),
-    size:+document.getElementById('aSize').value||0,
-    content:document.getElementById('aContent').value.trim(),
-    photos:actPhotos, created: S.activities[id]?.created || Date.now()
-  };
-  closeModal('actModal'); renderActs(); markDirty();
-}
-function actDel(id){
-  if(!confirm('이 활동 기록을 삭제할까요?')) return;
-  delete S.activities[id]; renderActs(); markDirty();
-}
-function renderActs(){
-  const list = Object.entries(S.activities||{}).sort((a,b)=>(b[1].dt||'').localeCompare(a[1].dt||''));
-  document.getElementById('actGrid').innerHTML = list.length ? list.map(([id,a])=>`
-    <div class="act-card">
-      ${a.photos?.length?`<div class="imgs">${a.photos.map(p=>`<img src="${p}" onclick="lightbox(this.src)">`).join('')}</div>`:''}
-      <div class="body">
-        <h4>${esc(a.name)}</h4>
-        <div class="meta">
-          <b>일시</b> ${a.dt?a.dt.replace('T',' '):'-'}<br>
-          <b>장소</b> ${esc(a.place)||'-'} &nbsp;·&nbsp; <b>대상</b> ${esc(a.target)||'-'}<br>
-          <b>규모</b> ${a.size?a.size.toLocaleString()+'명':'-'}
-        </div>
-        ${a.content?`<div class="desc">${esc(a.content)}</div>`:''}
-      </div>
-      <div class="foot admin-only">
-        <button class="btn-sub" onclick="actOpen('${id}')">수정</button>
-        <button class="btn-danger" onclick="actDel('${id}')">삭제</button>
-      </div>
-    </div>`).join('') : '<div class="empty" style="grid-column:1/-1">아직 등록된 활동이 없습니다</div>';
-}
-
-// ═══ 차트 헬퍼 ═══
-function mkChart(id, type, data, opt){
-  if(charts[id]) charts[id].destroy();
-  const ctx = document.getElementById(id);
-  if(!ctx) return;
-  charts[id] = new Chart(ctx, {type, data, options:Object.assign({
-    responsive:true, maintainAspectRatio:false,
-    plugins:Object.assign({legend:{position:'top'}}, opt.plugins||{})
-  }, opt)});
-}
-
-// ═══ 시작 ═══
-(function(){
-  const saved = sessionStorage.getItem('cdRole');
-  if(saved){ document.getElementById('pwInput').value=''; enter(saved); }
-})();
-</script>
-</body>
-</html>
+function applyMode(){
+  document.body.classList.toggle('viewer', !isAdmin);
+  const b = document.getElementById('modeBadge');
+  b.textContent = isAdmin ? '🔑 관리자' : '👤 열람자';
+  b.className = isAdmin ? 'admin' : 'viewer';
+  if(!isAdmin &&
