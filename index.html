@@ -1,0 +1,716 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>교육교재 열람확인 대시보드</title>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<style>
+  :root{
+    --navy:#1a2744; --navy2:#243450; --ink:#20242c;
+    --paper:#f5f4f0; --card:#ffffff; --line:#e3e1da;
+    --gold:#b8912f; --gold-bg:#faf5e8;
+    --green:#1e7a4d; --green-bg:#e8f5ee;
+    --red:#b0392f; --red-bg:#fbeceb;
+    --muted:#7a7f89;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;font-family:'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif}
+  body{background:var(--paper);color:var(--ink);min-height:100vh}
+  button{cursor:pointer;font-family:inherit}
+
+  /* 잠금 화면 */
+  #lockScreen{position:fixed;inset:0;background:var(--navy);display:flex;align-items:center;justify-content:center;z-index:1000}
+  .lockBox{background:#fff;border-radius:16px;padding:40px 32px;width:90%;max-width:360px;text-align:center}
+  .lockBox .emblem{width:56px;height:56px;border-radius:50%;background:var(--gold-bg);border:2px solid var(--gold);display:flex;align-items:center;justify-content:center;font-size:26px;margin:0 auto 16px}
+  .lockBox h1{font-size:19px;color:var(--navy);margin-bottom:6px}
+  .lockBox p{font-size:13px;color:var(--muted);margin-bottom:20px}
+  .lockBox input{width:100%;padding:13px;border:1.5px solid var(--line);border-radius:10px;font-size:16px;text-align:center;margin-bottom:12px}
+  .lockBox input:focus{outline:none;border-color:var(--gold)}
+  .lockBox button{width:100%;padding:13px;background:var(--navy);color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:700}
+  .lockErr{color:var(--red);font-size:13px;margin-top:10px;display:none}
+
+  /* 헤더 */
+  header{background:var(--navy);color:#fff;padding:16px 20px}
+  .hWrap{max-width:960px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;gap:10px}
+  header h1{font-size:17px;font-weight:800;letter-spacing:-.3px}
+  header .sub{font-size:11px;color:#aeb8cc;margin-top:2px}
+  #syncBadge{font-size:11px;padding:4px 10px;border-radius:20px;background:rgba(255,255,255,.12);white-space:nowrap}
+  #syncBadge.on{background:var(--green);color:#fff}
+  #syncBadge.off{background:var(--red);color:#fff}
+
+  /* 탭 */
+  nav{background:#fff;border-bottom:1px solid var(--line);position:sticky;top:0;z-index:50}
+  .tabs{max-width:960px;margin:0 auto;display:flex}
+  .tabs button{flex:1;padding:13px 8px;background:none;border:none;font-size:14px;font-weight:600;color:var(--muted);border-bottom:2.5px solid transparent}
+  .tabs button.active{color:var(--navy);border-bottom-color:var(--gold)}
+
+  main{max-width:960px;margin:0 auto;padding:18px 14px 80px}
+  .page{display:none}
+  .page.active{display:block}
+
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px;margin-bottom:14px}
+  .cardTitle{font-size:15px;font-weight:800;color:var(--navy);margin-bottom:14px;display:flex;align-items:center;gap:8px}
+  .cardTitle::before{content:"";width:4px;height:16px;background:var(--gold);border-radius:2px}
+
+  .formRow{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+  input[type=text],input[type=date],select{padding:11px 12px;border:1.5px solid var(--line);border-radius:9px;font-size:14px;background:#fff}
+  input:focus,select:focus{outline:none;border-color:var(--gold)}
+  .grow{flex:1;min-width:130px}
+  .btn{padding:11px 18px;border:none;border-radius:9px;font-size:14px;font-weight:700}
+  .btnNavy{background:var(--navy);color:#fff}
+  .btnGold{background:var(--gold);color:#fff}
+  .btnGhost{background:#fff;border:1.5px solid var(--line);color:var(--ink)}
+  .btnSm{padding:6px 11px;font-size:12px;border-radius:7px}
+  .btnRed{background:var(--red-bg);color:var(--red);border:none}
+
+  /* 교재 목록 */
+  .docItem{background:#fff;border:1px solid var(--line);border-radius:12px;padding:15px 16px;margin-bottom:10px;cursor:pointer;transition:.15s}
+  .docItem:hover{border-color:var(--gold)}
+  .docTop{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+  .docName{font-size:15px;font-weight:800;color:var(--navy)}
+  .docMeta{font-size:12px;color:var(--muted);margin-top:4px}
+  .docMeta b{color:var(--ink);font-weight:600}
+  .progWrap{margin-top:11px}
+  .progBar{height:7px;background:var(--line);border-radius:4px;overflow:hidden}
+  .progFill{height:100%;background:linear-gradient(90deg,var(--gold),#d4ab45);border-radius:4px;transition:width .4s}
+  .progFill.done{background:var(--green)}
+  .progTxt{font-size:12px;color:var(--muted);margin-top:5px;display:flex;justify-content:space-between}
+  .chip{display:inline-block;font-size:11px;padding:3px 9px;border-radius:12px;background:var(--gold-bg);color:var(--gold);font-weight:700;margin:2px 3px 0 0}
+
+  /* 상세(확인) 화면 */
+  .backBar{display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap}
+  .memberRow{display:flex;align-items:center;justify-content:space-between;background:#fff;border:1px solid var(--line);border-radius:11px;padding:12px 14px;margin-bottom:8px}
+  .memberRow.confirmed{background:var(--green-bg);border-color:#bfe3cf}
+  .mInfo .mName{font-size:15px;font-weight:700}
+  .mInfo .mSub{font-size:12px;color:var(--muted);margin-top:2px}
+  .confirmBtn{padding:9px 16px;border-radius:9px;border:none;font-size:13px;font-weight:800;background:var(--navy);color:#fff}
+  .confirmedTag{font-size:12px;font-weight:800;color:var(--green);text-align:right}
+  .confirmedTag small{display:block;font-weight:500;color:var(--muted);font-size:11px;margin-top:2px}
+  .statLine{display:flex;gap:10px;margin-bottom:14px}
+  .statBox{flex:1;background:#fff;border:1px solid var(--line);border-radius:11px;padding:12px;text-align:center}
+  .statBox .n{font-size:22px;font-weight:900;color:var(--navy)}
+  .statBox .l{font-size:11px;color:var(--muted);margin-top:2px}
+  .statBox.g .n{color:var(--green)}
+  .statBox.r .n{color:var(--red)}
+
+  /* 그룹/명단 */
+  .listRow{display:flex;align-items:center;justify-content:space-between;padding:11px 4px;border-bottom:1px solid var(--line);gap:8px}
+  .listRow:last-child{border-bottom:none}
+  .checkGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px;margin:10px 0}
+  .checkGrid label{display:flex;align-items:center;gap:7px;font-size:13px;background:var(--paper);padding:8px 10px;border-radius:8px;cursor:pointer}
+  .checkGrid input{accent-color:var(--gold);width:16px;height:16px}
+
+  /* 모달 */
+  .modal{position:fixed;inset:0;background:rgba(20,25,40,.55);display:none;align-items:center;justify-content:center;z-index:200;padding:16px}
+  .modal.show{display:flex}
+  .modalBox{background:#fff;border-radius:16px;padding:24px;width:100%;max-width:440px;max-height:88vh;overflow-y:auto}
+  .modalBox h3{font-size:16px;color:var(--navy);margin-bottom:16px}
+  #qrTarget{display:flex;justify-content:center;margin:14px 0}
+  .qrUrl{font-size:11px;color:var(--muted);word-break:break-all;background:var(--paper);padding:8px;border-radius:8px;margin-bottom:12px}
+  .empty{text-align:center;color:var(--muted);font-size:13px;padding:30px 0}
+  body.viewer .adminOnly{display:none!important}
+  #modeBadge{font-size:11px;padding:4px 10px;border-radius:20px;border:none;font-weight:700;cursor:pointer;white-space:nowrap}
+  #modeBadge.admin{background:var(--gold);color:#fff}
+  #modeBadge.viewer{background:rgba(255,255,255,.15);color:#cfd6e4}
+  .notice{font-size:12px;color:var(--muted);background:var(--gold-bg);border:1px solid #eddfb8;border-radius:9px;padding:10px 12px;margin-bottom:14px;line-height:1.6}
+</style>
+</head>
+<body>
+
+<!-- 잠금 화면 -->
+<div id="lockScreen">
+  <div class="lockBox">
+    <div class="emblem">📖</div>
+    <h1>교육교재 열람확인</h1>
+    <p>보안 교재 열람확인 시스템입니다.<br>열람자 또는 관리자 암호를 입력하세요.</p>
+    <input type="password" id="pwInput" placeholder="암호 입력" onkeydown="if(event.key==='Enter')checkPw()">
+    <button onclick="checkPw()">접속하기</button>
+    <div class="lockErr" id="pwErr">암호가 올바르지 않습니다.</div>
+  </div>
+</div>
+
+<header>
+  <div class="hWrap">
+    <div>
+      <h1>📖 교육교재 열람확인 대시보드</h1>
+      <div class="sub">세종 선교센터 · 기획부</div>
+    </div>
+    <div style="display:flex;gap:6px;align-items:center">
+      <button class="adminOnly" onclick="openPwSettings()" style="font-size:11px;padding:4px 10px;border-radius:20px;border:none;background:rgba(255,255,255,.15);color:#cfd6e4;font-weight:700;cursor:pointer;white-space:nowrap">⚙️ 암호 변경</button>
+      <button id="modeBadge" class="viewer" onclick="toggleMode()">👤 열람자</button>
+      <span id="syncBadge">연결 확인중…</span>
+    </div>
+  </div>
+</header>
+
+<nav>
+  <div class="tabs">
+    <button class="active" onclick="goTab('docs',this)">📚 교재 목록</button>
+    <button class="adminOnly" onclick="goTab('groups',this)">👥 대상자 그룹</button>
+    <button class="adminOnly" onclick="goTab('members',this)">📋 명단 관리</button>
+  </div>
+</nav>
+
+<main>
+  <!-- ══════ 교재 목록 ══════ -->
+  <div class="page active" id="page-docs">
+    <div class="card adminOnly">
+      <div class="cardTitle">새 교재 등록</div>
+      <div class="formRow">
+        <input type="text" id="docTitle" class="grow" placeholder="교재명">
+        <input type="text" id="docTopic" class="grow" placeholder="주제">
+        <input type="date" id="docDate">
+      </div>
+      <div style="font-size:13px;font-weight:700;margin:6px 0 4px">대상자 그룹 선택 (복수 가능)</div>
+      <div class="checkGrid" id="docGroupPick"><div class="empty" style="grid-column:1/-1;padding:10px 0">그룹을 먼저 등록하세요</div></div>
+      <button class="btn btnNavy" onclick="addDoc()">＋ 교재 등록</button>
+    </div>
+    <div id="docList"></div>
+  </div>
+
+  <!-- ══════ 교재 상세 (확인 화면) ══════ -->
+  <div class="page" id="page-detail">
+    <div class="backBar">
+      <button class="btn btnGhost btnSm" onclick="closeDetail()">← 목록으로</button>
+      <button class="btn btnGhost btnSm adminOnly" onclick="editDoc()">✏️ 교재 수정</button>
+      <button class="btn btnGhost btnSm adminOnly" onclick="resendNotify()">🔔 봇 알림 재발송</button>
+      <button class="btn btnGold btnSm adminOnly" onclick="showQR()">🔗 QR 코드</button>
+      <button class="btn btnRed btnSm adminOnly" onclick="deleteDoc()">교재 삭제</button>
+    </div>
+    <div class="card">
+      <div id="detailHead"></div>
+      <div class="statLine">
+        <div class="statBox"><div class="n" id="stTotal">0</div><div class="l">대상 인원</div></div>
+        <div class="statBox g"><div class="n" id="stDone">0</div><div class="l">확인 완료</div></div>
+        <div class="statBox r"><div class="n" id="stLeft">0</div><div class="l">미확인</div></div>
+      </div>
+      <div class="progBar" style="margin-bottom:16px"><div class="progFill" id="detailProg" style="width:0%"></div></div>
+      <div id="memberList"></div>
+    </div>
+  </div>
+
+  <!-- ══════ 대상자 그룹 ══════ -->
+  <div class="page" id="page-groups">
+    <div class="card">
+      <div class="cardTitle">그룹 만들기</div>
+      <div class="notice">예시: 교회운영진(운영중진·지원중진·행정중진), 선교센터 사명자, 24부서장 등 — 열람 대상은 그때마다 다르므로 그룹으로 저장해두고 교재 등록 시 선택하세요.</div>
+      <div class="formRow">
+        <input type="text" id="grpName" class="grow" placeholder="그룹명 (예: 교회운영진)">
+        <button class="btn btnNavy" onclick="addGroup()">＋ 그룹 추가</button>
+      </div>
+    </div>
+    <div id="groupList"></div>
+  </div>
+
+  <!-- ══════ 명단 관리 ══════ -->
+  <div class="page" id="page-members">
+    <div class="card">
+      <div class="cardTitle">대상자 등록</div>
+      <div class="notice">각 대상자는 등록 즉시 <b>고유코드(🔑)</b>가 발급됩니다. 이 코드를 개별로 전달하면, 대상자가 텔레그램 봇에 코드를 입력해 본인 계정을 연동할 수 있습니다. 관리자가 승인하면 연동완료 ✅ 상태로 바뀝니다.</div>
+      <div class="formRow">
+        <input type="text" id="mName" class="grow" placeholder="이름">
+        <input type="text" id="mDept" class="grow" placeholder="부서">
+        <input type="text" id="mPos" class="grow" placeholder="직책">
+        <input type="text" id="mEtc" class="grow" placeholder="기타">
+      </div>
+      <button class="btn btnNavy" onclick="addMember()">＋ 대상자 추가</button>
+    </div>
+    <div class="card">
+      <div class="cardTitle">전체 명단 <span id="mCount" style="color:var(--muted);font-weight:500;font-size:13px"></span></div>
+      <div id="memberMaster"></div>
+    </div>
+  </div>
+</main>
+
+<!-- QR 모달 -->
+<div class="modal" id="qrModal" onclick="if(event.target===this)this.classList.remove('show')">
+  <div class="modalBox" style="text-align:center">
+    <h3 id="qrTitle">QR 코드</h3>
+    <div id="qrTarget"></div>
+    <div class="qrUrl" id="qrUrl"></div>
+    <p style="font-size:12px;color:var(--muted);margin-bottom:14px">이 QR을 출력물 옆에 부착하세요.<br>스캔하면 해당 교재 확인 화면으로 바로 이동합니다.</p>
+    <button class="btn btnGhost" onclick="document.getElementById('qrModal').classList.remove('show')">닫기</button>
+  </div>
+</div>
+
+<!-- 수정 모달 -->
+<div class="modal" id="editModal" onclick="if(event.target===this)this.classList.remove('show')">
+  <div class="modalBox" id="editBox"></div>
+</div>
+
+<script>
+/* ═══════════════════════════════════════════════
+   ① Firebase 설정 — 본인 프로젝트 설정값으로 교체하세요.
+   (Firebase 콘솔 → 프로젝트 설정 → 웹앱 → firebaseConfig 복사)
+   비워두면 이 기기에만 저장되는 로컬 모드로 동작합니다.
+═══════════════════════════════════════════════ */
+const firebaseConfig = {
+  apiKey: "AIzaSyCCUHsCrrqQt2r655BpLwACXKN88RhiVkk",
+  authDomain: "sejong-dasnboard.firebaseapp.com",
+  databaseURL: "https://sejong-dasnboard-default-rtdb.firebaseio.com",
+  projectId: "sejong-dasnboard",
+  storageBucket: "sejong-dasnboard.firebasestorage.app",
+  messagingSenderId: "749054078144",
+  appId: "1:749054078144:web:6a3124e6d0ea4eab975125"
+};
+
+/* ② 초기 암호 (관리자 화면의 ⚙️ 암호 변경에서 언제든 바꿀 수 있습니다.
+   변경한 암호는 실시간 저장되어 모든 기기에 즉시 적용됩니다.) */
+const VIEWER_PASSWORD = "tpwhd1000!!";
+const ADMIN_PASSWORD  = "admin1000!!";
+/* 세종취합봇(교재열람·참석확인 등)과 회원명단/그룹/설정을 공유하는 통합 루트 경로.
+   이후 참석확인 등 다른 기능이 추가돼도 이 명단을 그대로 재사용합니다. */
+const DB_PATH = "sejong_unified";
+
+function viewerPw(){ return (DATA.settings && DATA.settings.viewerPw) || VIEWER_PASSWORD; }
+function adminPw(){ return (DATA.settings && DATA.settings.adminPw) || ADMIN_PASSWORD; }
+
+let DATA = { members:{}, groups:{}, docs:{} };
+let db = null, useFirebase = false, currentDocId = null;
+
+/* ───── 초기화 ───── */
+function init(){
+  document.getElementById('docDate').value = new Date().toISOString().slice(0,10);
+  const badge = document.getElementById('syncBadge');
+  if(firebaseConfig.apiKey && firebaseConfig.databaseURL){
+    try{
+      firebase.initializeApp(firebaseConfig);
+      db = firebase.database();
+      useFirebase = true;
+      badge.textContent = "🟢 실시간 동기화";
+      badge.className = "on";
+      db.ref(DB_PATH).on('value', snap=>{
+        DATA = Object.assign({members:{},groups:{},docs:{},settings:{}}, snap.val()||{});
+        renderAll();
+      });
+    }catch(e){ localMode(); }
+  } else { localMode(); }
+  // QR 파라미터 확인
+  const p = new URLSearchParams(location.search).get('doc');
+  if(p) currentDocId = p;
+}
+function localMode(){
+  const badge = document.getElementById('syncBadge');
+  badge.textContent = "⚪ 로컬 모드 (기기 저장)";
+  badge.className = "off";
+  const saved = localStorage.getItem(DB_PATH);
+  if(saved) DATA = JSON.parse(saved);
+  renderAll();
+}
+function save(){
+  if(useFirebase){ db.ref(DB_PATH).set(DATA); }
+  else { localStorage.setItem(DB_PATH, JSON.stringify(DATA)); renderAll(); }
+}
+
+/* ───── 암호 / 권한 ───── */
+let isAdmin = false;
+function checkPw(){
+  const v = document.getElementById('pwInput').value;
+  if(v === adminPw() || v === viewerPw()){
+    isAdmin = (v === adminPw());
+    applyMode();
+    document.getElementById('lockScreen').style.display='none';
+    if(isAdmin) migrateMembers();
+    if(currentDocId && DATA.docs[currentDocId]) openDetail(currentDocId);
+  } else {
+    document.getElementById('pwErr').style.display='block';
+  }
+}
+function migrateMembers(){
+  let changed = false;
+  Object.values(DATA.members||{}).forEach(m=>{
+    if(!m.regCode){ m.regCode = genCode(); changed = true; }
+    if(!m.tgStatus){ m.tgStatus = 'none'; changed = true; }
+  });
+  if(changed) save();
+}
+function applyMode(){
+  document.body.classList.toggle('viewer', !isAdmin);
+  const b = document.getElementById('modeBadge');
+  b.textContent = isAdmin ? '🔑 관리자' : '👤 열람자';
+  b.className = isAdmin ? 'admin' : 'viewer';
+  // 열람자가 관리자 탭에 있었으면 교재 목록으로 이동
+  if(!isAdmin && (document.getElementById('page-groups').classList.contains('active') || document.getElementById('page-members').classList.contains('active'))){
+    goTab('docs', document.querySelector('.tabs button'));
+  }
+}
+function toggleMode(){
+  if(isAdmin){
+    if(confirm('열람자 모드로 전환할까요?')){ isAdmin=false; applyMode(); }
+  } else {
+    const v = prompt('관리자 암호를 입력하세요.');
+    if(v === null) return;
+    if(v === adminPw()){ isAdmin=true; applyMode(); }
+    else alert('관리자 암호가 올바르지 않습니다.');
+  }
+}
+
+/* ───── 암호 변경 (관리자) ───── */
+function openPwSettings(){
+  if(!isAdmin) return;
+  openEdit(`
+    <h3>⚙️ 암호 변경</h3>
+    <div style="font-size:13px;font-weight:700;margin-bottom:4px">👤 열람자 암호</div>
+    <div class="formRow"><input type="text" id="pwV" class="grow" value="${esc(viewerPw())}"></div>
+    <div style="font-size:13px;font-weight:700;margin:8px 0 4px">🔑 관리자 암호</div>
+    <div class="formRow"><input type="text" id="pwA" class="grow" value="${esc(adminPw())}"></div>
+    <p style="font-size:12px;color:var(--muted);margin:6px 0 14px">저장하면 즉시 모든 기기에 적용됩니다. 관리자 암호는 꼭 기억해두세요.</p>
+    <button class="btn btnNavy" style="width:100%" onclick="savePwSettings()">암호 저장</button>`);
+}
+function savePwSettings(){
+  const v = document.getElementById('pwV').value.trim();
+  const a = document.getElementById('pwA').value.trim();
+  if(!v || !a) return alert('암호를 모두 입력하세요.');
+  if(v === a) return alert('열람자 암호와 관리자 암호는 서로 달라야 합니다.');
+  if(!confirm(`변경할까요?\n열람자: ${v}\n관리자: ${a}`)) return;
+  if(!DATA.settings) DATA.settings = {};
+  DATA.settings.viewerPw = v;
+  DATA.settings.adminPw = a;
+  closeEdit(); save();
+  alert('암호가 변경되었습니다.');
+}
+
+/* ───── 탭 ───── */
+function goTab(name, btn){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.getElementById('page-'+name).classList.add('active');
+  document.querySelectorAll('.tabs button').forEach(b=>b.classList.remove('active'));
+  if(btn) btn.classList.add('active');
+}
+
+/* ───── 렌더 전체 ───── */
+function renderAll(){
+  renderMembers(); renderGroups(); renderGroupPick(); renderDocs();
+  if(currentDocId && DATA.docs[currentDocId] && document.getElementById('page-detail').classList.contains('active')) renderDetail();
+  else if(currentDocId && DATA.docs[currentDocId] && document.getElementById('lockScreen').style.display==='none') openDetail(currentDocId);
+}
+const uid = ()=> Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+const esc = s => (s||'').replace(/</g,'&lt;');
+
+/* ═══════ 명단 ═══════ */
+function genCode(){
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // 혼동되는 0/O, 1/I 제외
+  let existing = new Set(Object.values(DATA.members||{}).map(m=>m.regCode));
+  let code;
+  do{ code = Array.from({length:6},()=>chars[Math.floor(Math.random()*chars.length)]).join(''); }
+  while(existing.has(code));
+  return code;
+}
+function addMember(){
+  const n = document.getElementById('mName').value.trim();
+  if(!n) return alert('이름을 입력하세요.');
+  DATA.members[uid()] = {
+    name:n,
+    dept:document.getElementById('mDept').value.trim(),
+    pos:document.getElementById('mPos').value.trim(),
+    etc:document.getElementById('mEtc').value.trim(),
+    regCode: genCode(),
+    tgStatus: 'none'   // none | pending | linked
+  };
+  ['mName','mDept','mPos','mEtc'].forEach(i=>document.getElementById(i).value='');
+  save();
+}
+function renderMembers(){
+  const box = document.getElementById('memberMaster');
+  const ids = Object.keys(DATA.members);
+  document.getElementById('mCount').textContent = `(${ids.length}명)`;
+  if(!ids.length){ box.innerHTML = '<div class="empty">등록된 대상자가 없습니다</div>'; return; }
+  const statusMap = { linked:['✅ 연동완료','var(--green)'], pending:['⏳ 승인대기','var(--gold)'], none:['⚪ 미연동','var(--muted)'] };
+  box.innerHTML = ids.map(id=>{
+    const m = DATA.members[id];
+    const st = statusMap[m.tgStatus||'none'];
+    return `<div class="listRow" style="flex-wrap:wrap">
+      <div><b>${esc(m.name)}</b>
+        <span style="font-size:12px;color:var(--muted)"> · ${esc(m.dept)||'-'} · ${esc(m.pos)||'-'}${m.etc?' · '+esc(m.etc):''}</span>
+        <div style="margin-top:4px;display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+          <span class="chip" style="cursor:pointer" title="눌러서 복사" onclick="copyCode('${m.regCode||''}')">🔑 ${esc(m.regCode)||'-'}</span>
+          <span style="font-size:11px;font-weight:700;color:${st[1]}">${st[0]}</span>
+        </div>
+      </div>
+      <div style="display:flex;gap:5px">
+        <button class="btn btnGhost btnSm" onclick="regenCode('${id}')">코드 재발급</button>
+        <button class="btn btnGhost btnSm" onclick="editMember('${id}')">수정</button>
+        <button class="btn btnRed btnSm" onclick="delMember('${id}')">삭제</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+function copyCode(code){
+  if(!code) return;
+  navigator.clipboard && navigator.clipboard.writeText(code).then(()=>alert('코드가 복사되었습니다: '+code)).catch(()=>alert('코드: '+code));
+}
+function regenCode(id){
+  if(!confirm('코드를 재발급할까요? 기존 코드는 더 이상 사용할 수 없게 됩니다.')) return;
+  DATA.members[id].regCode = genCode();
+  save();
+}
+function editMember(id){
+  const m = DATA.members[id];
+  openEdit(`
+    <h3>대상자 수정</h3>
+    <div class="formRow"><input type="text" id="eN" class="grow" value="${esc(m.name)}" placeholder="이름"></div>
+    <div class="formRow"><input type="text" id="eD" class="grow" value="${esc(m.dept)}" placeholder="부서"></div>
+    <div class="formRow"><input type="text" id="eP" class="grow" value="${esc(m.pos)}" placeholder="직책"></div>
+    <div class="formRow"><input type="text" id="eE" class="grow" value="${esc(m.etc)}" placeholder="기타"></div>
+    <button class="btn btnNavy" style="width:100%" onclick="saveMember('${id}')">저장</button>`);
+}
+function saveMember(id){
+  const m = DATA.members[id];
+  m.name = document.getElementById('eN').value.trim();
+  m.dept = document.getElementById('eD').value.trim();
+  m.pos = document.getElementById('eP').value.trim();
+  m.etc = document.getElementById('eE').value.trim();
+  if(!m.regCode) m.regCode = genCode();
+  if(!m.tgStatus) m.tgStatus = 'none';
+  closeEdit(); save();
+}
+function delMember(id){
+  if(!confirm('이 대상자를 삭제할까요?')) return;
+  delete DATA.members[id];
+  Object.values(DATA.groups).forEach(g=>{ if(g.memberIds) delete g.memberIds[id]; });
+  save();
+}
+
+/* ═══════ 그룹 ═══════ */
+function addGroup(){
+  const n = document.getElementById('grpName').value.trim();
+  if(!n) return alert('그룹명을 입력하세요.');
+  DATA.groups[uid()] = { name:n, memberIds:{} };
+  document.getElementById('grpName').value='';
+  save();
+}
+function renderGroups(){
+  const box = document.getElementById('groupList');
+  const ids = Object.keys(DATA.groups);
+  if(!ids.length){ box.innerHTML = '<div class="card"><div class="empty">등록된 그룹이 없습니다</div></div>'; return; }
+  box.innerHTML = ids.map(id=>{
+    const g = DATA.groups[id];
+    const cnt = Object.keys(g.memberIds||{}).length;
+    return `<div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px">
+        <div class="cardTitle" style="margin-bottom:0">${esc(g.name)} <span style="font-size:12px;color:var(--muted);font-weight:500">${cnt}명</span></div>
+        <div style="display:flex;gap:5px">
+          <button class="btn btnGhost btnSm" onclick="editGroupMembers('${id}')">구성원 편집</button>
+          <button class="btn btnRed btnSm" onclick="delGroup('${id}')">삭제</button>
+        </div>
+      </div>
+      <div style="margin-top:8px">${Object.keys(g.memberIds||{}).map(mid=>DATA.members[mid]?`<span class="chip">${esc(DATA.members[mid].name)}</span>`:'').join('')||'<span style="font-size:12px;color:var(--muted)">구성원 없음</span>'}</div>
+    </div>`;
+  }).join('');
+}
+function editGroupMembers(id){
+  const g = DATA.groups[id];
+  const mids = Object.keys(DATA.members);
+  if(!mids.length) return alert('먼저 명단 관리에서 대상자를 등록하세요.');
+  openEdit(`
+    <h3>「${esc(g.name)}」 구성원 선택</h3>
+    <div class="checkGrid">${mids.map(mid=>{
+      const m = DATA.members[mid];
+      const chk = g.memberIds && g.memberIds[mid] ? 'checked':'';
+      return `<label><input type="checkbox" value="${mid}" ${chk}> ${esc(m.name)}<small style="color:var(--muted)">${esc(m.dept)}</small></label>`;
+    }).join('')}</div>
+    <button class="btn btnNavy" style="width:100%" onclick="saveGroupMembers('${id}')">저장</button>`);
+}
+function saveGroupMembers(id){
+  const sel = {};
+  document.querySelectorAll('#editBox input[type=checkbox]:checked').forEach(c=>sel[c.value]=true);
+  DATA.groups[id].memberIds = sel;
+  closeEdit(); save();
+}
+function delGroup(id){
+  if(!confirm('이 그룹을 삭제할까요?')) return;
+  delete DATA.groups[id]; save();
+}
+
+/* ═══════ 교재 ═══════ */
+function renderGroupPick(){
+  const box = document.getElementById('docGroupPick');
+  const ids = Object.keys(DATA.groups);
+  if(!ids.length){ box.innerHTML='<div class="empty" style="grid-column:1/-1;padding:10px 0">「대상자 그룹」 탭에서 그룹을 먼저 등록하세요</div>'; return; }
+  box.innerHTML = ids.map(id=>`<label><input type="checkbox" value="${id}"> ${esc(DATA.groups[id].name)}</label>`).join('');
+}
+function addDoc(){
+  const t = document.getElementById('docTitle').value.trim();
+  if(!t) return alert('교재명을 입력하세요.');
+  const gids = {};
+  document.querySelectorAll('#docGroupPick input:checked').forEach(c=>gids[c.value]=true);
+  if(!Object.keys(gids).length) return alert('대상자 그룹을 선택하세요.');
+  DATA.docs[uid()] = {
+    title:t,
+    topic:document.getElementById('docTopic').value.trim(),
+    date:document.getElementById('docDate').value,
+    groupIds:gids,
+    confirms:{},
+    createdAt: Date.now(),
+    notified: false
+  };
+  document.getElementById('docTitle').value='';
+  document.getElementById('docTopic').value='';
+  save();
+}
+function docTargets(doc){
+  const set = {};
+  Object.keys(doc.groupIds||{}).forEach(gid=>{
+    const g = DATA.groups[gid];
+    if(g) Object.keys(g.memberIds||{}).forEach(mid=>{ if(DATA.members[mid]) set[mid]=true; });
+  });
+  return Object.keys(set);
+}
+function renderDocs(){
+  const box = document.getElementById('docList');
+  const ids = Object.keys(DATA.docs).sort((a,b)=>(DATA.docs[b].date||'').localeCompare(DATA.docs[a].date||''));
+  if(!ids.length){ box.innerHTML='<div class="card"><div class="empty">등록된 교재가 없습니다</div></div>'; return; }
+  box.innerHTML = ids.map(id=>{
+    const d = DATA.docs[id];
+    const targets = docTargets(d);
+    const done = targets.filter(mid=>d.confirms && d.confirms[mid]).length;
+    const pct = targets.length? Math.round(done/targets.length*100):0;
+    const gchips = Object.keys(d.groupIds||{}).map(g=>DATA.groups[g]?`<span class="chip">${esc(DATA.groups[g].name)}</span>`:'').join('');
+    return `<div class="docItem" onclick="openDetail('${id}')">
+      <div class="docTop">
+        <div>
+          <div class="docName">${esc(d.title)}</div>
+          <div class="docMeta">주제: <b>${esc(d.topic)||'-'}</b> · 게시일: <b>${d.date||'-'}</b></div>
+        </div>
+        <div style="font-size:18px;font-weight:900;color:${pct===100?'var(--green)':'var(--gold)'}">${pct}%</div>
+      </div>
+      <div style="margin-top:6px">${gchips}</div>
+      <div class="progWrap">
+        <div class="progBar"><div class="progFill ${pct===100?'done':''}" style="width:${pct}%"></div></div>
+        <div class="progTxt"><span>확인 ${done} / ${targets.length}명</span><span>${pct===100?'✅ 전원 확인 완료':'미확인 '+(targets.length-done)+'명'}</span></div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+/* ═══════ 상세 / 확인 ═══════ */
+function openDetail(id){
+  currentDocId = id;
+  goTab('detail', null);
+  document.querySelectorAll('.tabs button').forEach(b=>b.classList.remove('active'));
+  renderDetail();
+}
+function closeDetail(){
+  currentDocId = null;
+  history.replaceState(null,'',location.pathname);
+  goTab('docs', document.querySelector('.tabs button'));
+}
+function renderDetail(){
+  const d = DATA.docs[currentDocId];
+  if(!d){ closeDetail(); return; }
+  document.getElementById('detailHead').innerHTML = `
+    <div class="docName" style="font-size:18px">${esc(d.title)}</div>
+    <div class="docMeta" style="margin-bottom:14px">주제: <b>${esc(d.topic)||'-'}</b> · 게시일: <b>${d.date||'-'}</b></div>`;
+  const targets = docTargets(d);
+  const done = targets.filter(mid=>d.confirms && d.confirms[mid]).length;
+  document.getElementById('stTotal').textContent = targets.length;
+  document.getElementById('stDone').textContent = done;
+  document.getElementById('stLeft').textContent = targets.length-done;
+  const pct = targets.length? Math.round(done/targets.length*100):0;
+  const pf = document.getElementById('detailProg');
+  pf.style.width = pct+'%';
+  pf.className = 'progFill'+(pct===100?' done':'');
+  const box = document.getElementById('memberList');
+  if(!targets.length){ box.innerHTML='<div class="empty">대상자가 없습니다. 그룹 구성원을 확인하세요.</div>'; return; }
+  box.innerHTML = targets.map(mid=>{
+    const m = DATA.members[mid];
+    const c = d.confirms ? d.confirms[mid] : null;
+    if(c){
+      const t = new Date(c);
+      const ts = `${t.getFullYear()}.${String(t.getMonth()+1).padStart(2,'0')}.${String(t.getDate()).padStart(2,'0')} ${String(t.getHours()).padStart(2,'0')}:${String(t.getMinutes()).padStart(2,'0')}`;
+      return `<div class="memberRow confirmed">
+        <div class="mInfo"><div class="mName">✅ ${esc(m.name)}</div><div class="mSub">${esc(m.dept)||'-'} · ${esc(m.pos)||'-'}</div></div>
+        <div class="confirmedTag" onclick="cancelConfirm('${mid}')" style="cursor:pointer">확인 완료<small>${ts}</small></div>
+      </div>`;
+    }
+    return `<div class="memberRow">
+      <div class="mInfo"><div class="mName">${esc(m.name)}</div><div class="mSub">${esc(m.dept)||'-'} · ${esc(m.pos)||'-'}</div></div>
+      <button class="confirmBtn" onclick="doConfirm('${mid}')">열람 확인</button>
+    </div>`;
+  }).join('');
+}
+function doConfirm(mid){
+  const m = DATA.members[mid];
+  if(!confirm(`「${m.name}」 님 본인이 맞습니까?\n교재 열람을 확인 처리합니다.`)) return;
+  const d = DATA.docs[currentDocId];
+  if(!d.confirms) d.confirms = {};
+  d.confirms[mid] = Date.now();
+  save();
+  if(!useFirebase) renderDetail();
+}
+function cancelConfirm(mid){
+  if(!isAdmin) return alert('확인 취소는 관리자만 가능합니다.');
+  if(!confirm('확인을 취소할까요? (관리자용)')) return;
+  delete DATA.docs[currentDocId].confirms[mid];
+  save();
+  if(!useFirebase) renderDetail();
+}
+function deleteDoc(){
+  if(!confirm('이 교재를 삭제할까요? 확인 기록도 함께 삭제됩니다.')) return;
+  delete DATA.docs[currentDocId];
+  closeDetail(); save();
+}
+function editDoc(){
+  const d = DATA.docs[currentDocId];
+  if(!d) return;
+  const gids = Object.keys(DATA.groups);
+  const groupHtml = gids.length ? gids.map(gid=>{
+    const chk = d.groupIds && d.groupIds[gid] ? 'checked':'';
+    return `<label><input type="checkbox" value="${gid}" ${chk}> ${esc(DATA.groups[gid].name)}</label>`;
+  }).join('') : '<div class="empty" style="grid-column:1/-1;padding:6px 0">등록된 그룹이 없습니다</div>';
+  openEdit(`
+    <h3>✏️ 교재 정보 수정</h3>
+    <div class="formRow"><input type="text" id="edTitle" class="grow" value="${esc(d.title)}" placeholder="교재명"></div>
+    <div class="formRow"><input type="text" id="edTopic" class="grow" value="${esc(d.topic)}" placeholder="주제"></div>
+    <div class="formRow"><input type="date" id="edDate" class="grow" value="${d.date||''}"></div>
+    <div style="font-size:13px;font-weight:700;margin:6px 0 4px">대상자 그룹 선택</div>
+    <div class="checkGrid">${groupHtml}</div>
+    <p style="font-size:12px;color:var(--muted);margin:6px 0 14px">그룹을 새로 선택하면 대상자 범위가 바뀝니다. 기존 확인 기록은 그대로 유지되며, 대상에서 빠진 사람의 확인 기록은 화면에 더 이상 표시되지 않습니다.</p>
+    <button class="btn btnNavy" style="width:100%" onclick="saveDocEdit()">저장</button>`);
+}
+function saveDocEdit(){
+  const t = document.getElementById('edTitle').value.trim();
+  if(!t) return alert('교재명을 입력하세요.');
+  const gids = {};
+  document.querySelectorAll('#editBox input[type=checkbox]:checked').forEach(c=>gids[c.value]=true);
+  if(!Object.keys(gids).length) return alert('대상자 그룹을 선택하세요.');
+  const d = DATA.docs[currentDocId];
+  d.title = t;
+  d.topic = document.getElementById('edTopic').value.trim();
+  d.date = document.getElementById('edDate').value;
+  d.groupIds = gids;
+  closeEdit(); save();
+  if(!useFirebase) renderDetail();
+}
+function resendNotify(){
+  if(!confirm('연동된 대상자 전원에게 텔레그램으로 알림을 다시 보낼까요?')) return;
+  DATA.docs[currentDocId].notified = false;
+  save();
+  alert('요청되었습니다. 잠시 후 봇이 알림을 전송합니다.');
+}
+
+/* ═══════ QR ═══════ */
+function showQR(){
+  const d = DATA.docs[currentDocId];
+  const url = location.origin + location.pathname + '?doc=' + currentDocId;
+  document.getElementById('qrTitle').textContent = d.title;
+  document.getElementById('qrUrl').textContent = url;
+  const t = document.getElementById('qrTarget');
+  t.innerHTML = '';
+  new QRCode(t, { text:url, width:200, height:200, colorDark:"#1a2744" });
+  document.getElementById('qrModal').classList.add('show');
+}
+
+/* ═══════ 모달 유틸 ═══════ */
+function openEdit(html){
+  document.getElementById('editBox').innerHTML = html;
+  document.getElementById('editModal').classList.add('show');
+}
+function closeEdit(){ document.getElementById('editModal').classList.remove('show'); }
+
+init();
+</script>
+</body>
+</html>
