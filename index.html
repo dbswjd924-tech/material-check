@@ -182,6 +182,9 @@
         <input type="text" id="itemTopic" class="grow" placeholder="주제 / 설명">
         <input type="date" id="itemDate">
       </div>
+      <div class="formRow">
+        <input type="text" id="itemOptions" class="grow" placeholder="선택 항목 (쉼표로 구분, 비워두면 단순 확인 · 예: 참석,불참,미정)">
+      </div>
       <div style="font-size:13px;font-weight:700;margin:6px 0 4px">대상자 그룹 선택 (복수 가능)</div>
       <div class="checkGrid" id="itemGroupPick"><div class="empty" style="grid-column:1/-1;padding:10px 0">그룹을 먼저 등록하세요</div></div>
       <button class="btn btnNavy" onclick="addItem()">＋ 항목 등록</button>
@@ -205,7 +208,8 @@
         <div class="statBox g"><div class="n" id="stDone">0</div><div class="l">확인 완료</div></div>
         <div class="statBox r"><div class="n" id="stLeft">0</div><div class="l">미확인</div></div>
       </div>
-      <div class="progBar" style="margin-bottom:16px"><div class="progFill" id="detailProg" style="width:0%"></div></div>
+      <div class="progBar" style="margin-bottom:10px"><div class="progFill" id="detailProg" style="width:0%"></div></div>
+      <div id="optSummary" style="margin-bottom:14px;display:none"></div>
       <div id="memberList"></div>
     </div>
   </div>
@@ -651,11 +655,14 @@ function addItem(){
   const gids = {};
   document.querySelectorAll('#itemGroupPick input:checked').forEach(c=>gids[c.value]=true);
   if(!Object.keys(gids).length) return alert('대상자 그룹을 선택하세요.');
+  const optRaw = document.getElementById('itemOptions').value.trim();
+  const options = optRaw ? optRaw.split(',').map(s=>s.trim()).filter(Boolean) : null;
   if(!room.items) room.items = {};
   room.items[uid()] = {
     title:t,
     topic:document.getElementById('itemTopic').value.trim(),
     date:document.getElementById('itemDate').value,
+    options: options,
     groupIds:gids,
     confirms:{},
     createdAt: Date.now(),
@@ -663,6 +670,7 @@ function addItem(){
   };
   document.getElementById('itemTitle').value='';
   document.getElementById('itemTopic').value='';
+  document.getElementById('itemOptions').value='';
   save();
 }
 function renderRoomItems(){
@@ -682,7 +690,7 @@ function renderRoomItems(){
     return `<div class="docItem" onclick="openDetail('${id}')">
       <div class="docTop">
         <div>
-          <div class="docName">${esc(d.title)}</div>
+          <div class="docName">${esc(d.title)}${d.options && d.options.length ? ' <span class="chip" style="background:var(--green-bg);color:var(--green)">선택형</span>' : ''}</div>
           <div class="docMeta">주제: <b>${esc(d.topic)||'-'}</b> · 날짜: <b>${d.date||'-'}</b></div>
         </div>
         <div style="font-size:18px;font-weight:900;color:${pct===100?'var(--green)':'var(--gold)'}">${pct}%</div>
@@ -712,6 +720,11 @@ function closeDetail(){
   goTab('roomview', null);
   renderRoomItems();
 }
+function confirmInfo(raw){
+  if(raw===null || raw===undefined) return null;
+  if(typeof raw === 'number') return { at: raw, value: null }; // 예전 형식(단순 확인) 호환
+  return raw;
+}
 function renderDetail(){
   const d = currentItem();
   if(!d){ closeDetail(); return; }
@@ -727,31 +740,50 @@ function renderDetail(){
   const pf = document.getElementById('detailProg');
   pf.style.width = pct+'%';
   pf.className = 'progFill'+(pct===100?' done':'');
+
+  // 선택 항목이 있으면 옵션별 집계 칩 표시
+  const optBox = document.getElementById('optSummary');
+  if(d.options && d.options.length){
+    const counts = d.options.map(opt => targets.filter(mid=>{
+      const info = confirmInfo(d.confirms && d.confirms[mid]);
+      return info && info.value === opt;
+    }).length);
+    optBox.innerHTML = d.options.map((opt,i)=>`<span class="chip">${esc(opt)} ${counts[i]}명</span>`).join('');
+    optBox.style.display = 'block';
+  } else if(optBox){
+    optBox.style.display = 'none';
+  }
+
   const box = document.getElementById('memberList');
   if(!targets.length){ box.innerHTML='<div class="empty">대상자가 없습니다. 그룹 구성원을 확인하세요.</div>'; return; }
   box.innerHTML = targets.map(mid=>{
     const m = DATA.members[mid];
-    const c = d.confirms ? d.confirms[mid] : null;
-    if(c){
-      const t = new Date(c);
+    const info = confirmInfo(d.confirms ? d.confirms[mid] : null);
+    if(info){
+      const t = new Date(info.at);
       const ts = `${t.getFullYear()}.${String(t.getMonth()+1).padStart(2,'0')}.${String(t.getDate()).padStart(2,'0')} ${String(t.getHours()).padStart(2,'0')}:${String(t.getMinutes()).padStart(2,'0')}`;
+      const label = info.value ? `✅ ${esc(info.value)}` : '✅ 확인 완료';
       return `<div class="memberRow confirmed">
-        <div class="mInfo"><div class="mName">✅ ${esc(m.name)}</div><div class="mSub">${esc(m.dept)||'-'} · ${esc(m.pos)||'-'}</div></div>
-        <div class="confirmedTag" onclick="cancelConfirm('${mid}')" style="cursor:pointer">확인 완료<small>${ts}</small></div>
+        <div class="mInfo"><div class="mName">${esc(m.name)}</div><div class="mSub">${esc(m.dept)||'-'} · ${esc(m.pos)||'-'}</div></div>
+        <div class="confirmedTag" onclick="cancelConfirm('${mid}')" style="cursor:pointer">${label}<small>${ts}</small></div>
       </div>`;
     }
+    const buttons = (d.options && d.options.length)
+      ? d.options.map(opt=>`<button class="confirmBtn" style="margin-left:6px" onclick="doConfirm('${mid}','${esc(opt).replace(/'/g,"&#39;")}')">${esc(opt)}</button>`).join('')
+      : `<button class="confirmBtn" onclick="doConfirm('${mid}')">확인</button>`;
     return `<div class="memberRow">
       <div class="mInfo"><div class="mName">${esc(m.name)}</div><div class="mSub">${esc(m.dept)||'-'} · ${esc(m.pos)||'-'}</div></div>
-      <button class="confirmBtn" onclick="doConfirm('${mid}')">확인</button>
+      <div>${buttons}</div>
     </div>`;
   }).join('');
 }
-function doConfirm(mid){
+function doConfirm(mid, value){
   const m = DATA.members[mid];
-  if(!confirm(`「${m.name}」 님 본인이 맞습니까?\n확인 처리합니다.`)) return;
+  const msg = value ? `「${m.name}」 님 본인이 맞습니까?\n"${value}" 로 확인 처리합니다.` : `「${m.name}」 님 본인이 맞습니까?\n확인 처리합니다.`;
+  if(!confirm(msg)) return;
   const d = currentItem();
   if(!d.confirms) d.confirms = {};
-  d.confirms[mid] = Date.now();
+  d.confirms[mid] = { value: value || null, at: Date.now() };
   save();
   if(!useFirebase) renderDetail();
 }
@@ -780,6 +812,8 @@ function editDoc(){
     <div class="formRow"><input type="text" id="edTitle" class="grow" value="${esc(d.title)}" placeholder="제목"></div>
     <div class="formRow"><input type="text" id="edTopic" class="grow" value="${esc(d.topic)}" placeholder="주제 / 설명"></div>
     <div class="formRow"><input type="date" id="edDate" class="grow" value="${d.date||''}"></div>
+    <div class="formRow"><input type="text" id="edOptions" class="grow" value="${esc((d.options||[]).join(', '))}" placeholder="선택 항목 (쉼표로 구분, 비워두면 단순 확인)"></div>
+    <p style="font-size:12px;color:var(--muted);margin:-4px 0 10px">⚠️ 선택 항목을 바꾸면 기존 응답의 표시 내용이 달라질 수 있습니다 (응답 자체는 유지됩니다).</p>
     <div style="font-size:13px;font-weight:700;margin:6px 0 4px">대상자 그룹 선택</div>
     <div class="checkGrid">${groupHtml}</div>
     <p style="font-size:12px;color:var(--muted);margin:6px 0 14px">그룹을 새로 선택하면 대상 범위가 바뀝니다. 기존 확인 기록은 그대로 유지됩니다.</p>
@@ -791,10 +825,12 @@ function saveDocEdit(){
   const gids = {};
   document.querySelectorAll('#editBox input[type=checkbox]:checked').forEach(c=>gids[c.value]=true);
   if(!Object.keys(gids).length) return alert('대상자 그룹을 선택하세요.');
+  const optRaw = document.getElementById('edOptions').value.trim();
   const d = currentItem();
   d.title = t;
   d.topic = document.getElementById('edTopic').value.trim();
   d.date = document.getElementById('edDate').value;
+  d.options = optRaw ? optRaw.split(',').map(s=>s.trim()).filter(Boolean) : null;
   d.groupIds = gids;
   closeEdit(); save();
   if(!useFirebase) renderDetail();
