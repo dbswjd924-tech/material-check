@@ -185,6 +185,9 @@
       <div class="formRow">
         <input type="text" id="itemOptions" class="grow" placeholder="선택 항목 (쉼표로 구분, 비워두면 단순 확인 · 예: 참석,불참,미정)">
       </div>
+      <label style="display:flex;align-items:center;gap:6px;font-size:13px;margin:-4px 0 10px;cursor:pointer">
+        <input type="checkbox" id="itemMulti" style="width:16px;height:16px;accent-color:var(--gold)"> 복수 선택 허용 (예: 참여 가능한 요일을 모두 선택)
+      </label>
       <div style="font-size:13px;font-weight:700;margin:6px 0 4px">⏰ 마감시간 (선택)</div>
       <div class="formRow">
         <input type="datetime-local" id="itemDeadline" class="grow">
@@ -686,6 +689,7 @@ function addItem(){
   if(!Object.keys(gids).length) return alert('대상자 그룹을 선택하세요.');
   const optRaw = document.getElementById('itemOptions').value.trim();
   const options = optRaw ? optRaw.split(',').map(s=>s.trim()).filter(Boolean) : null;
+  const multiSelect = options ? document.getElementById('itemMulti').checked : false;
   const deadlineVal = document.getElementById('itemDeadline').value;
   const deadlineTs = deadlineVal ? new Date(deadlineVal).getTime() : null;
   const reminders = [];
@@ -696,6 +700,7 @@ function addItem(){
     topic:document.getElementById('itemTopic').value.trim(),
     date:document.getElementById('itemDate').value,
     options: options,
+    multiSelect: multiSelect,
     deadline: deadlineVal || null,
     deadlineTs: deadlineTs,
     reminders: deadlineTs ? reminders : [],
@@ -708,6 +713,7 @@ function addItem(){
   document.getElementById('itemTitle').value='';
   document.getElementById('itemTopic').value='';
   document.getElementById('itemOptions').value='';
+  document.getElementById('itemMulti').checked=false;
   document.getElementById('itemDeadline').value='';
   document.querySelectorAll('#itemReminders input:checked').forEach(c=>c.checked=false);
   save();
@@ -729,7 +735,7 @@ function renderRoomItems(){
     return `<div class="docItem" onclick="openDetail('${id}')">
       <div class="docTop">
         <div>
-          <div class="docName">${esc(d.title)}${d.options && d.options.length ? ' <span class="chip" style="background:var(--green-bg);color:var(--green)">선택형</span>' : ''}</div>
+          <div class="docName">${esc(d.title)}${d.options && d.options.length ? ' <span class="chip" style="background:var(--green-bg);color:var(--green)">'+(d.multiSelect?'복수선택':'선택형')+'</span>' : ''}</div>
           <div class="docMeta">주제: <b>${esc(d.topic)||'-'}</b> · 날짜: <b>${d.date||'-'}</b>${d.deadlineTs?` · ⏰ 마감 <b>${fmtDT(d.deadlineTs)}</b>${d.deadlineTs<Date.now()&&pct<100?' <span style="color:var(--red)">(지남)</span>':''}`:''}</div>
         </div>
         <div style="font-size:18px;font-weight:900;color:${pct===100?'var(--green)':'var(--gold)'}">${pct}%</div>
@@ -790,14 +796,26 @@ function renderDetail(){
   pf.style.width = pct+'%';
   pf.className = 'progFill'+(pct===100?' done':'');
 
-  // 선택 항목이 있으면 옵션별 집계 칩 표시
+  // 응답 명단: 옵션별 인원 + 미확인 인원
   const optBox = document.getElementById('optSummary');
+  const pendingMids = targets.filter(mid=>!(d.confirms && d.confirms[mid]));
+  const nameList = mids => mids.map(mid=>DATA.members[mid]?esc(DATA.members[mid].name):'').filter(Boolean).join(', ') || '(없음)';
+  let summaryHtml = '';
   if(d.options && d.options.length){
-    const counts = d.options.map(opt => targets.filter(mid=>{
-      const info = confirmInfo(d.confirms && d.confirms[mid]);
-      return info && info.value === opt;
-    }).length);
-    optBox.innerHTML = d.options.map((opt,i)=>`<span class="chip">${esc(opt)} ${counts[i]}명</span>`).join('');
+    summaryHtml += d.options.map(opt=>{
+      const mids = targets.filter(mid=>{
+        const info = confirmInfo(d.confirms && d.confirms[mid]);
+        if(!info) return false;
+        return Array.isArray(info.value) ? info.value.includes(opt) : info.value === opt;
+      });
+      return `<div style="margin-bottom:6px;font-size:13px"><b>${esc(opt)}</b> <span style="color:var(--muted)">(${mids.length}명)</span> — ${nameList(mids)}</div>`;
+    }).join('');
+  }
+  if(pendingMids.length){
+    summaryHtml += `<div style="font-size:13px"><b style="color:var(--red)">미확인</b> <span style="color:var(--muted)">(${pendingMids.length}명)</span> — ${nameList(pendingMids)}</div>`;
+  }
+  if(summaryHtml){
+    optBox.innerHTML = `<div class="card" style="padding:14px;margin-bottom:0"><div style="font-weight:800;font-size:13px;color:var(--navy);margin-bottom:8px">📋 응답 명단</div>${summaryHtml}</div>`;
     optBox.style.display = 'block';
   } else if(optBox){
     optBox.style.display = 'none';
@@ -809,16 +827,24 @@ function renderDetail(){
     const m = DATA.members[mid];
     const info = confirmInfo(d.confirms ? d.confirms[mid] : null);
     if(info){
-      const label = info.value ? `✅ ${esc(info.value)}` : '✅ 확인 완료';
+      const valTxt = Array.isArray(info.value) ? info.value.join(', ') : info.value;
+      const label = valTxt ? `✅ ${esc(valTxt)}` : '✅ 확인 완료';
       return `<div class="memberRow confirmed">
         <div class="mInfo"><div class="mName">${esc(m.name)}</div><div class="mSub">${esc(m.dept)||'-'} · ${esc(m.pos)||'-'}</div></div>
         <div class="confirmedTag" onclick="editConfirm('${mid}')" style="cursor:pointer">${label}<small>${fmtDT(info.at)} · 수정하기</small></div>
       </div>`;
     }
+    const pingBtn = `<button class="btn btnGhost btnSm adminOnly" style="margin-left:6px" onclick="resendToOne('${mid}')" title="이 사람에게만 알림 재발송">🔔</button>`;
+    if(d.options && d.options.length && d.multiSelect){
+      const chks = d.options.map((opt,i)=>`<label style="font-size:12px;background:var(--paper);padding:4px 8px;border-radius:6px;margin-right:4px;display:inline-flex;align-items:center;gap:4px"><input type="checkbox" class="msOpt" data-mid="${mid}" value="${esc(opt).replace(/"/g,'&quot;')}"> ${esc(opt)}</label>`).join('');
+      return `<div class="memberRow" style="flex-wrap:wrap">
+        <div class="mInfo"><div class="mName">${esc(m.name)}</div><div class="mSub">${esc(m.dept)||'-'} · ${esc(m.pos)||'-'}</div></div>
+        <div style="width:100%;margin-top:6px;display:flex;flex-wrap:wrap;align-items:center;gap:6px">${chks}<button class="confirmBtn btnSm" onclick="submitMulti('${mid}')">제출</button>${pingBtn}</div>
+      </div>`;
+    }
     const buttons = (d.options && d.options.length)
       ? d.options.map(opt=>`<button class="confirmBtn" style="margin-left:6px" onclick="doConfirm('${mid}','${esc(opt).replace(/'/g,"&#39;")}')">${esc(opt)}</button>`).join('')
       : `<button class="confirmBtn" onclick="doConfirm('${mid}')">확인</button>`;
-    const pingBtn = `<button class="btn btnGhost btnSm adminOnly" style="margin-left:6px" onclick="resendToOne('${mid}')" title="이 사람에게만 알림 재발송">🔔</button>`;
     return `<div class="memberRow">
       <div class="mInfo"><div class="mName">${esc(m.name)}</div><div class="mSub">${esc(m.dept)||'-'} · ${esc(m.pos)||'-'}</div></div>
       <div style="display:flex;align-items:center">${buttons}${pingBtn}</div>
@@ -835,10 +861,32 @@ function doConfirm(mid, value){
   save();
   if(!useFirebase) renderDetail();
 }
+function submitMulti(mid){
+  const m = DATA.members[mid];
+  const checked = Array.from(document.querySelectorAll(`.msOpt[data-mid="${mid}"]:checked`)).map(c=>c.value);
+  if(!checked.length) return alert('최소 하나는 선택해주세요.');
+  if(!confirm(`「${m.name}」 님 본인이 맞습니까?\n선택: ${checked.join(', ')}`)) return;
+  const d = currentItem();
+  if(!d.confirms) d.confirms = {};
+  d.confirms[mid] = { value: checked, at: Date.now() };
+  save();
+  if(!useFirebase) renderDetail();
+}
 function editConfirm(mid){
   const d = currentItem();
   const m = DATA.members[mid];
-  if(d.options && d.options.length){
+  if(d.options && d.options.length && d.multiSelect){
+    const cur = confirmInfo(d.confirms[mid]);
+    const curVals = (cur && Array.isArray(cur.value)) ? cur.value : [];
+    const chks = d.options.map(opt=>
+      `<label style="display:flex;align-items:center;gap:6px;padding:8px 10px;background:var(--paper);border-radius:8px;margin-bottom:6px;cursor:pointer"><input type="checkbox" class="msEdit" value="${esc(opt).replace(/"/g,'&quot;')}" ${curVals.includes(opt)?'checked':''}> ${esc(opt)}</label>`
+    ).join('');
+    openEdit(`
+      <h3>${esc(m.name)}님 응답 수정</h3>
+      <div style="margin-bottom:10px">${chks}</div>
+      <button class="btn btnNavy" style="width:100%;margin-bottom:8px" onclick="saveMultiEdit('${mid}')">저장</button>
+      <button class="btn btnRed" style="width:100%" onclick="setConfirmValue('${mid}', null)">확인 취소</button>`);
+  } else if(d.options && d.options.length){
     const optButtons = d.options.map(opt=>
       `<button class="btn btnGhost" style="width:100%;margin-bottom:6px;text-align:left" onclick="setConfirmValue('${mid}','${esc(opt).replace(/'/g,"&#39;")}')">${esc(opt)}</button>`
     ).join('');
@@ -852,6 +900,11 @@ function editConfirm(mid){
     save();
     if(!useFirebase) renderDetail();
   }
+}
+function saveMultiEdit(mid){
+  const checked = Array.from(document.querySelectorAll('#editBox .msEdit:checked')).map(c=>c.value);
+  if(!checked.length) return alert('최소 하나는 선택해주세요.');
+  setConfirmValue(mid, checked);
 }
 function setConfirmValue(mid, value){
   const d = currentItem();
@@ -880,6 +933,9 @@ function editDoc(){
     <div class="formRow"><input type="text" id="edTopic" class="grow" value="${esc(d.topic)}" placeholder="주제 / 설명"></div>
     <div class="formRow"><input type="date" id="edDate" class="grow" value="${d.date||''}"></div>
     <div class="formRow"><input type="text" id="edOptions" class="grow" value="${esc((d.options||[]).join(', '))}" placeholder="선택 항목 (쉼표로 구분, 비워두면 단순 확인)"></div>
+    <label style="display:flex;align-items:center;gap:6px;font-size:13px;margin:-4px 0 10px;cursor:pointer">
+      <input type="checkbox" id="edMulti" style="width:16px;height:16px;accent-color:var(--gold)" ${d.multiSelect?'checked':''}> 복수 선택 허용 (예: 참여 가능한 요일을 모두 선택)
+    </label>
     <p style="font-size:12px;color:var(--muted);margin:-4px 0 10px">⚠️ 선택 항목을 바꾸면 기존 응답의 표시 내용이 달라질 수 있습니다 (응답 자체는 유지됩니다).</p>
     <div style="font-size:13px;font-weight:700;margin:6px 0 4px">⏰ 마감시간 (선택)</div>
     <div class="formRow"><input type="datetime-local" id="edDeadline" class="grow" value="${d.deadline||''}"></div>
@@ -902,6 +958,8 @@ function saveDocEdit(){
   document.querySelectorAll('#edGroupPick input:checked').forEach(c=>gids[c.value]=true);
   if(!Object.keys(gids).length) return alert('대상자 그룹을 선택하세요.');
   const optRaw = document.getElementById('edOptions').value.trim();
+  const options = optRaw ? optRaw.split(',').map(s=>s.trim()).filter(Boolean) : null;
+  const multiSelect = options ? document.getElementById('edMulti').checked : false;
   const deadlineVal = document.getElementById('edDeadline').value;
   const deadlineTs = deadlineVal ? new Date(deadlineVal).getTime() : null;
   const reminders = [];
@@ -910,7 +968,8 @@ function saveDocEdit(){
   d.title = t;
   d.topic = document.getElementById('edTopic').value.trim();
   d.date = document.getElementById('edDate').value;
-  d.options = optRaw ? optRaw.split(',').map(s=>s.trim()).filter(Boolean) : null;
+  d.options = options;
+  d.multiSelect = multiSelect;
   d.deadline = deadlineVal || null;
   d.deadlineTs = deadlineTs;
   d.reminders = deadlineTs ? reminders : [];
